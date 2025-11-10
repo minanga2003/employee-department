@@ -60,7 +60,7 @@ export const EmployeeTable = ({
         header: () => "Emp No",
         meta: { headerAlign: "right" },
         cell: ({ getValue }) => (
-          <Typography variant="body2" textAlign="right">
+          <Typography variant="body2" textAlign="right" sx={{ fontSize: "0.8rem" }}>
             {getValue<number>()}
           </Typography>
         ),
@@ -69,7 +69,7 @@ export const EmployeeTable = ({
         accessorKey: "name",
         header: () => "Name",
         cell: ({ getValue }) => (
-          <Typography variant="body2" fontWeight={500}>
+          <Typography variant="body2" fontWeight={500} sx={{ fontSize: "0.85rem" }}>
             {getValue<string>()}
           </Typography>
         ),
@@ -78,7 +78,9 @@ export const EmployeeTable = ({
         accessorKey: "departmentName",
         header: () => "Department",
         cell: ({ getValue }) => (
-          <Typography variant="body2">{getValue<string>() ?? "—"}</Typography>
+          <Typography variant="body2" sx={{ fontSize: "0.8rem" }}>
+            {getValue<string>() ?? "—"}
+          </Typography>
         ),
       },
       {
@@ -86,7 +88,7 @@ export const EmployeeTable = ({
         header: () => "Basic Salary",
         meta: { headerAlign: "right" },
         cell: ({ row }) => (
-          <Typography variant="body2" textAlign="right" fontWeight={500}>
+          <Typography variant="body2" textAlign="right" fontWeight={500} sx={{ fontSize: "0.85rem" }}>
             {formatCurrency(row.original.basicSalary)}
           </Typography>
         ),
@@ -95,14 +97,18 @@ export const EmployeeTable = ({
         accessorKey: "email",
         header: () => "Email",
         cell: ({ getValue }) => (
-          <Typography variant="body2">{getValue<string>()}</Typography>
+          <Typography variant="body2" sx={{ fontSize: "0.8rem" }}>
+            {getValue<string>()}
+          </Typography>
         ),
       },
       {
         accessorKey: "sectionName",
         header: () => "Section",
         cell: ({ getValue }) => (
-          <Typography variant="body2">{getValue<string>() ?? "—"}</Typography>
+          <Typography variant="body2" sx={{ fontSize: "0.8rem" }}>
+            {getValue<string>() ?? "—"}
+          </Typography>
         ),
       },
     ],
@@ -133,9 +139,9 @@ export const EmployeeTable = ({
       />
 
       <Box display="flex" justifyContent="flex-end">
-        <Typography variant="subtitle2">
+        <Typography variant="subtitle2" sx={{ fontSize: "0.85rem" }}>
           Total Salary:&nbsp;
-          <Typography component="span" fontWeight={600}>
+          <Typography component="span" fontWeight={600} sx={{ fontSize: "0.85rem" }}>
             {formatCurrency(pageTotalSalary)}
           </Typography>
         </Typography>

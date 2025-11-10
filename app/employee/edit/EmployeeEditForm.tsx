@@ -478,6 +478,9 @@ export const EmployeeEditForm = () => {
                   />
                 }
                 label="Active"
+                sx={{
+                  "& .MuiTypography-root": { fontSize: "0.8rem" },
+                }}
               />
             </Stack>
           </Box>

@@ -337,6 +337,9 @@ export const EmployeeDashboard = () => {
                     />
                   }
                   label="Active Only"
+                  sx={{
+                    "& .MuiTypography-root": { fontSize: "0.8rem" },
+                  }}
                 />
 
                 <Box sx={{ minWidth: 220 }}>

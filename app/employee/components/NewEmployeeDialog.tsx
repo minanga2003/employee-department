@@ -9,7 +9,6 @@ import {
   DialogTitle,
   Divider,
   CircularProgress,
-  FormControlLabel,
   IconButton,
   Stack,
   Typography,
@@ -22,7 +21,6 @@ import KeyboardBackspaceRoundedIcon from "@mui/icons-material/KeyboardBackspaceR
 import CleaningServicesIcon from "@mui/icons-material/CleaningServices";
 import PlayArrowRoundedIcon from "@mui/icons-material/PlayArrowRounded";
 import CustomAutocomplete from "@/components/forms/drop-down/custom-auto-complete";
-import CustomCheckbox from "@/components/forms/checkbox/custom-checkbox";
 import CustomDatePicker from "@/components/forms/date-picker/date-picker";
 import CustomTextField from "@/components/forms/text-field/custom-text-field";
 import CustomButtonWithIcon from "@/components/ui/buttons/custom-button-with-icon";
@@ -111,11 +109,13 @@ const SectionHeader = ({ label }: { label: string }) => {
         }}
       />
       <Typography
-        variant="subtitle1"
+        variant="subtitle2"
         fontWeight={600}
         sx={{
           color: theme.palette.text.primary,
           minWidth: { xs: "auto", sm: 160 },
+          fontSize: "0.85rem",
+          letterSpacing: 0.3,
         }}
       >
         {label}
@@ -407,6 +407,7 @@ export const NewEmployeeDialog = ({ open, onClose, onCreated }: NewEmployeeDialo
         dividers
         sx={{
           p: 0,
+          overflowX: "hidden",
         }}
       >
         <Box
@@ -416,15 +417,28 @@ export const NewEmployeeDialog = ({ open, onClose, onCreated }: NewEmployeeDialo
           sx={{
             p: { xs: 2.5, sm: 3 },
             backgroundColor: theme.palette.background.paper,
+            width: "100%",
+            overflowX: "hidden",
           }}
         >
           <Stack spacing={3}>
-            <Stack direction="row" spacing={1.5} justifyContent="flex-end" alignItems="center">
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={{ xs: 1, sm: 1.5 }}
+              justifyContent="flex-start"
+              alignItems={{ xs: "stretch", sm: "center" }}
+              sx={{
+                width: "100%",
+                flexWrap: { sm: "wrap" },
+                rowGap: { sm: 1 },
+              }}
+            >
               <CustomButtonWithIcon
                 type="button"
                 variant="outlined"
                 startIcon={<CleaningServicesIcon fontSize="small" />}
                 onClick={resetForm}
+                sx={{ width: { xs: "100%", sm: "auto" } }}
               >
                 Clear
               </CustomButtonWithIcon>
@@ -433,6 +447,7 @@ export const NewEmployeeDialog = ({ open, onClose, onCreated }: NewEmployeeDialo
                 variant="outlined"
                 startIcon={<KeyboardBackspaceRoundedIcon fontSize="small" />}
                 onClick={handleClose}
+                sx={{ width: { xs: "100%", sm: "auto" } }}
               >
                 Back
               </CustomButtonWithIcon>
@@ -448,6 +463,7 @@ export const NewEmployeeDialog = ({ open, onClose, onCreated }: NewEmployeeDialo
                     <PlayArrowRoundedIcon fontSize="small" />
                   )
                 }
+                sx={{ width: { xs: "100%", sm: "auto" } }}
               >
                 Save
               </CustomButtonWithIcon>
@@ -467,9 +483,9 @@ export const NewEmployeeDialog = ({ open, onClose, onCreated }: NewEmployeeDialo
               }}
             >
               <Stack spacing={3}>
-                <Stack spacing={2}>
+                <Stack spacing={2} sx={{ width: "100%" }}>
                   <SectionHeader label="Personal Details" />
-                  <Grid container spacing={2}>
+                  <Grid container spacing={2} sx={{ width: "100%", m: 0 }}>
                     <Grid item xs={12} sm={6}>
                       <CustomTextField
                         name="empNo"
@@ -522,9 +538,8 @@ export const NewEmployeeDialog = ({ open, onClose, onCreated }: NewEmployeeDialo
                   </Grid>
                 </Stack>
 
-                <Stack spacing={2}>
-                  <SectionHeader label="Assignment" />
-                  <Grid container spacing={2}>
+                <Stack spacing={2} sx={{ width: "100%" }}>
+                  <Grid container spacing={2} sx={{ width: "100%", m: 0 }}>
                     <Grid item xs={12} sm={6}>
                       <CustomAutocomplete
                         label="Department"
@@ -565,10 +580,9 @@ export const NewEmployeeDialog = ({ open, onClose, onCreated }: NewEmployeeDialo
                   </Grid>
                 </Stack>
 
-                <Stack spacing={2}>
-                  <SectionHeader label="Compensation" />
-                  <Grid container spacing={2}>
-                    <Grid item xs={12} sm={4}>
+                <Stack spacing={2} sx={{ width: "100%" }}>
+                  <Grid container spacing={2} sx={{ width: "100%", m: 0 }}>
+                    <Grid item xs={12} sm={6}>
                       <CustomTextField
                         name="basicSalary"
                         label="Basic Salary"
@@ -577,7 +591,7 @@ export const NewEmployeeDialog = ({ open, onClose, onCreated }: NewEmployeeDialo
                         required
                       />
                     </Grid>
-                    <Grid item xs={12} sm={4}>
+                    <Grid item xs={12} sm={6}>
                       <CustomTextField
                         name="travelAllowance"
                         label="Travel Allowance"
@@ -585,7 +599,7 @@ export const NewEmployeeDialog = ({ open, onClose, onCreated }: NewEmployeeDialo
                         onChange={handleInputChange}
                       />
                     </Grid>
-                    <Grid item xs={12} sm={4}>
+                    <Grid item xs={12} sm={6}>
                       <CustomTextField
                         name="otherAllowance"
                         label="Other Allowance"
@@ -593,7 +607,7 @@ export const NewEmployeeDialog = ({ open, onClose, onCreated }: NewEmployeeDialo
                         onChange={handleInputChange}
                       />
                     </Grid>
-                    <Grid item xs={12}>
+                    <Grid item xs={12} sm={6}>
                       <CustomTextField
                         label="Total Salary"
                         value={totalSalaryLabel}

@@ -50,11 +50,26 @@ const Breadcrumb = ({ subtitle, items, title, onBackClick }: BreadcrumbProps) =>
           flexDirection: "column",
         }}
       >
-        <Typography variant="h6" sx={{ textTransform: "uppercase" }}>
+        <Typography
+          variant="subtitle1"
+          sx={{
+            textTransform: "uppercase",
+            fontSize: "0.85rem",
+            fontWeight: 600,
+            letterSpacing: 0.4,
+          }}
+        >
           {title}
         </Typography>
         {subtitle && (
-          <Typography color="textSecondary" variant="h6" fontWeight={400} mt={0} mb={0}>
+          <Typography
+            color="textSecondary"
+            variant="body2"
+            fontWeight={400}
+            mt={0}
+            mb={0}
+            sx={{ fontSize: "0.75rem" }}
+          >
             {subtitle}
           </Typography>
         )}
@@ -64,12 +79,18 @@ const Breadcrumb = ({ subtitle, items, title, onBackClick }: BreadcrumbProps) =>
               <div key={item.title}>
                 {item.to ? (
                   <NextLink href={item.to} passHref>
-                    <Typography color="textSecondary" sx={{ textTransform: "uppercase" }}>
+                    <Typography
+                      color="textSecondary"
+                      sx={{ textTransform: "uppercase", fontSize: "0.75rem", letterSpacing: 0.3 }}
+                    >
                       {item.title}
                     </Typography>
                   </NextLink>
                 ) : (
-                  <Typography color="textPrimary" sx={{ textTransform: "uppercase" }}>
+                  <Typography
+                    color="textPrimary"
+                    sx={{ textTransform: "uppercase", fontSize: "0.75rem", letterSpacing: 0.3 }}
+                  >
                     {item.title}
                   </Typography>
                 )}

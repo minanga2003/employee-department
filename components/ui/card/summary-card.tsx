@@ -33,6 +33,7 @@ const DataRow = styled(Typography)(({ theme }) => ({
   display: "flex",
   justifyContent: "space-between",
   marginTop: theme.spacing(1),
+  fontSize: "0.8rem",
   "&:first-of-type": {
     marginTop: 0,
   },
@@ -48,7 +49,7 @@ const SummaryCard = ({ data, title, backgroundColor, className }: SummaryCardPro
     <StyledCard className={className}>
       {title && (
         <>
-          <Typography variant="subtitle1" className="custom-sub-title">
+          <Typography variant="subtitle2" className="custom-sub-title" sx={{ fontSize: "0.85rem" }}>
             {title}
           </Typography>
           <CustomDivider />

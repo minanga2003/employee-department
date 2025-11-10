@@ -19,7 +19,7 @@ const StyledAutocomplete = styled(MuiAutocomplete)(() => ({
     "& .MuiOutlinedInput-input": {
       height: "32px",
       padding: "0 14px",
-      fontSize: "12px",
+      fontSize: "0.65rem !important",
     },
     padding: "0 !important",
   },
@@ -28,23 +28,6 @@ const StyledAutocomplete = styled(MuiAutocomplete)(() => ({
   },
   "& .MuiAutocomplete-clearIndicator": {
     padding: 4,
-  },
-  "& .MuiAutocomplete-listbox": {
-    fontSize: "12px !important",
-    lineHeight: 1.5,
-    maxHeight: "300px !important",
-    padding: 0,
-    "@media screen and (min-width: 0\\0)": {
-      scrollbarWidth: "thin",
-      scrollbarColor: "rgba(228, 18, 18, 0.3) transparent",
-    },
-  },
-  "& .MuiAutocomplete-option": {
-    fontSize: "12px !important",
-    lineHeight: 1.5,
-  },
-  "& .MuiPaper-root": {
-    fontSize: "12px !important",
   },
 }));
 
@@ -86,7 +69,7 @@ const CustomAutocomplete = <T extends DefaultOption>({
   value,
   onChange,
   label,
-  fullWidth = false,
+  fullWidth = true,
   disabled = false,
   inputRef,
   error,
@@ -192,6 +175,20 @@ const CustomAutocomplete = <T extends DefaultOption>({
             elevation: 12,
             sx: {
               width: "100%",
+              "& .MuiAutocomplete-listbox": {
+                fontSize: "0.7rem",
+                lineHeight: 1.5,
+                maxHeight: "300px",
+                padding: 0,
+                "@media screen and (min-width: 0\\0)": {
+                  scrollbarWidth: "thin",
+                  scrollbarColor: "rgba(228, 18, 18, 0.3) transparent",
+                },
+              },
+              "& .MuiAutocomplete-option": {
+                fontSize: "0.7rem",
+                lineHeight: 1.5,
+              },
             },
           },
         }}
@@ -199,6 +196,14 @@ const CustomAutocomplete = <T extends DefaultOption>({
           popper: {
             sx: {
               width: "100%",
+            },
+          },
+          listbox: {
+            sx: {
+              fontSize: "0.7rem",
+              lineHeight: 1.5,
+              maxHeight: "300px",
+              padding: 0,
             },
           },
         }}
