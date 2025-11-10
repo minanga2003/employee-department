@@ -1,8 +1,8 @@
 "use client";
 
-import { Grid, Typography, Breadcrumbs, Divider, IconButton } from "@mui/material";
+import { Grid, Typography, Breadcrumbs, IconButton } from "@mui/material";
 import NextLink from "next/link";
-import { IconCircle, IconArrowLeft } from "@tabler/icons-react";
+import ArrowBack from "@mui/icons-material/ArrowBack";
 import { ReactNode } from "react";
 
 export type BreadcrumbItem = {
@@ -37,7 +37,7 @@ const Breadcrumb = ({ subtitle, items, title, onBackClick }: BreadcrumbProps) =>
       {onBackClick && (
         <Grid item>
           <IconButton onClick={onBackClick} color="primary" sx={{ width: 34, height: 34 }}>
-            <IconArrowLeft size={24} />
+            <ArrowBack fontSize="small" />
           </IconButton>
         </Grid>
       )}
@@ -59,13 +59,7 @@ const Breadcrumb = ({ subtitle, items, title, onBackClick }: BreadcrumbProps) =>
           </Typography>
         )}
         {items && (
-          <Breadcrumbs
-            separator={
-              <IconCircle size={5} fill="textSecondary" fillOpacity={0.6} style={{ margin: "0 0px" }} />
-            }
-            sx={{ alignItems: "center" }}
-            aria-label="breadcrumb"
-          >
+          <Breadcrumbs separator={null} sx={{ alignItems: "center" }} aria-label="breadcrumb">
             {items.map((item) => (
               <div key={item.title}>
                 {item.to ? (
@@ -85,7 +79,6 @@ const Breadcrumb = ({ subtitle, items, title, onBackClick }: BreadcrumbProps) =>
         )}
       </Grid>
     </Grid>
-    <Divider sx={{ mb: 1, ml: 1 }} />
   </>
 );
 

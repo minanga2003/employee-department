@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Alert,
@@ -21,6 +21,7 @@ import PageContainer from "@/components/layouts/container/page-container";
 
 import { buildApiUrl } from "../../lib/apiConfig";
 import { EmployeeTable } from "./components/EmployeeTable";
+import NewEmployeeDialog from "./components/NewEmployeeDialog";
 import type { Department, Employee, PagedEmployeesResponse, Section } from "./types";
 
 const useDebounce = <T,>(value: T, delay: number) => {
@@ -71,6 +72,9 @@ export const EmployeeDashboard = () => {
   const [notification, setNotification] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+
+  const pendingNotificationRef = useRef<string | null>(null);
 
   const debouncedSearch = useDebounce(search, 400);
 
@@ -168,7 +172,9 @@ export const EmployeeDashboard = () => {
 
     const loadEmployees = async () => {
       setLoadingEmployees(true);
-      setNotification(null);
+      if (!pendingNotificationRef.current) {
+        setNotification(null);
+      }
 
       try {
         const url = buildApiUrl("/api/employees");
@@ -209,11 +215,16 @@ export const EmployeeDashboard = () => {
         setEmployees(parsedEmployees);
         setPageTotalSalary(toNumber(raw.pageTotalSalary));
         setError(null);
+        if (pendingNotificationRef.current) {
+          setNotification(pendingNotificationRef.current);
+          pendingNotificationRef.current = null;
+        }
       } catch (err) {
         if (err instanceof Error && err.name === "AbortError") return;
         if (!isActive) return;
         setEmployees([]);
         setPageTotalSalary(0);
+        pendingNotificationRef.current = null;
         setError(
           err instanceof Error
             ? err.message
@@ -284,7 +295,7 @@ export const EmployeeDashboard = () => {
         throw new Error(body || `Failed to delete employee (${response.status})`);
       }
 
-      setNotification("Employee deleted successfully.");
+      pendingNotificationRef.current = "Employee deleted successfully.";
       setReloadKey((prev) => prev + 1);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete employee.");
@@ -300,11 +311,11 @@ export const EmployeeDashboard = () => {
       <Stack spacing={3}>
         <BlankCard sx={{ p: 3 }}>
           <Stack spacing={2}>
-            <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems={{ md: "center" }}>
-              <Typography variant="h6" fontWeight={600}>
-                Employee Directory
-              </Typography>
-              <CustomButtonWithIcon variant="contained" onClick={() => router.push("/employee/edit")}>
+            <Stack direction={{ xs: "column", md: "row" }} justifyContent="flex-end" alignItems={{ md: "center" }}>
+              <CustomButtonWithIcon
+                variant="contained"
+                onClick={() => setIsCreateDialogOpen(true)}
+              >
                 New Employee
               </CustomButtonWithIcon>
             </Stack>
@@ -382,6 +393,15 @@ export const EmployeeDashboard = () => {
           </Stack>
         </BlankCard>
       </Stack>
+
+      <NewEmployeeDialog
+        open={isCreateDialogOpen}
+        onClose={() => setIsCreateDialogOpen(false)}
+        onCreated={() => {
+          pendingNotificationRef.current = "Employee created successfully.";
+          setReloadKey((prev) => prev + 1);
+        }}
+      />
     </PageContainer>
   );
 };

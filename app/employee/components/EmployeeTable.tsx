@@ -1,9 +1,10 @@
 import { useMemo } from "react";
-import { Alert, Box, Stack, Typography } from "@mui/material";
+import { Alert, Box, CircularProgress, Stack, Typography } from "@mui/material";
 import { ColumnDef } from "@tanstack/react-table";
 
-import ButtonLoader from "@/components/ui/buttons/button-loader";
-import CustomButtonWithIcon from "@/components/ui/buttons/custom-button-with-icon";
+import SoftIconButton from "@/components/ui/buttons/soft-icon-button";
+import EditRounded from "@mui/icons-material/EditRounded";
+import DeleteIcon from "@mui/icons-material/Delete";
 import DataTable from "@/components/ui/data-table/data-table";
 
 import type { Employee } from "../types";
@@ -39,24 +40,17 @@ export const EmployeeTable = ({
           const employee = row.original;
           return (
             <Stack direction="row" spacing={1} justifyContent="center">
-              <CustomButtonWithIcon
-                variant="outlined"
-                size="small"
-                buttonBorderColor="transparent"
-                onClick={() => onEdit(employee.id)}
-              >
-                Edit
-              </CustomButtonWithIcon>
-              <ButtonLoader
-                variant="outlined"
-                size="small"
-                color="error"
-                loading={deletingId === employee.id}
+              <SoftIconButton color="primary" onClick={() => onEdit(employee.id)} aria-label="Edit">
+                <EditRounded />
+              </SoftIconButton>
+              <SoftIconButton
+                color="default"
                 onClick={() => onDelete(employee.id)}
-                sx={{ minHeight: 32 }}
+                aria-label="Delete"
+                disabled={deletingId === employee.id}
               >
-                Delete
-              </ButtonLoader>
+                {deletingId === employee.id ? <CircularProgress size={18} /> : <DeleteIcon />}
+              </SoftIconButton>
             </Stack>
           );
         },
