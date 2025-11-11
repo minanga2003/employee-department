@@ -14,7 +14,7 @@ type EmployeeTableProps = {
   loading: boolean;
   error: string | null;
   onEdit: (employeeId: number) => void;
-  onDelete: (employeeId: number) => Promise<void> | void;
+  onDeleteRequest: (employeeId: number) => void;
   deletingId: number | null;
   pageTotalSalary: number;
   formatCurrency: (amount: number) => string;
@@ -25,7 +25,7 @@ export const EmployeeTable = ({
   loading,
   error,
   onEdit,
-  onDelete,
+  onDeleteRequest,
   deletingId,
   pageTotalSalary,
   formatCurrency,
@@ -45,7 +45,7 @@ export const EmployeeTable = ({
               </SoftIconButton>
               <SoftIconButton
                 color="default"
-                onClick={() => onDelete(employee.id)}
+                onClick={() => onDeleteRequest(employee.id)}
                 aria-label="Delete"
                 disabled={deletingId === employee.id}
               >
@@ -112,7 +112,7 @@ export const EmployeeTable = ({
         ),
       },
     ],
-    [deletingId, formatCurrency, onDelete, onEdit]
+    [deletingId, formatCurrency, onDeleteRequest, onEdit]
   );
 
   const noData = !loading && !error && employees.length === 0;

@@ -1,10 +1,15 @@
 "use client";
 
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   Alert,
   Box,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   FormControlLabel,
   LinearProgress,
   Stack,
@@ -55,8 +60,6 @@ const formatCurrency = (amount: number) =>
 type Option = { label: string; value: string };
 
 export const EmployeeDashboard = () => {
-  const router = useRouter();
-
   const [activeOnly, setActiveOnly] = useState(true);
   const [department, setDepartment] = useState<string>("all");
   const [section, setSection] = useState<string>("all");
@@ -71,8 +74,11 @@ export const EmployeeDashboard = () => {
   const [error, setError] = useState<string | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingEmployeeId, setEditingEmployeeId] = useState<number | null>(null);
 
   const pendingNotificationRef = useRef<string | null>(null);
 
@@ -275,14 +281,32 @@ export const EmployeeDashboard = () => {
     [section, sectionOptions]
   );
 
+  const pendingDeleteEmployee = useMemo(
+    () => employees.find((employee) => employee.id === pendingDeleteId) ?? null,
+    [employees, pendingDeleteId]
+  );
+
+  const isDeleteDialogOpen = pendingDeleteId !== null;
+  const isDeletingSelectedEmployee = deletingId !== null && deletingId === pendingDeleteId;
+
   const handleEdit = (employeeId: number) => {
-    router.push(`/employee/edit?id=${employeeId}`);
+    setEditingEmployeeId(employeeId);
+    setIsEditDialogOpen(true);
   };
 
-  const handleDelete = async (employeeId: number) => {
-    const confirmed = window.confirm("Are you sure you want to delete this employee?");
-    if (!confirmed) return;
+  const handleRequestDelete = (employeeId: number) => {
+    setPendingDeleteId(employeeId);
+  };
 
+  const handleCancelDelete = () => {
+    if (isDeletingSelectedEmployee) return;
+    setPendingDeleteId(null);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (pendingDeleteId === null) return;
+
+    const employeeId = pendingDeleteId;
     setDeletingId(employeeId);
     setError(null);
     setNotification(null);
@@ -300,6 +324,7 @@ export const EmployeeDashboard = () => {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete employee.");
     } finally {
+      setPendingDeleteId(null);
       setDeletingId(null);
     }
   };
@@ -388,7 +413,7 @@ export const EmployeeDashboard = () => {
               loading={loadingEmployees}
               error={error}
               onEdit={handleEdit}
-              onDelete={handleDelete}
+              onDeleteRequest={handleRequestDelete}
               deletingId={deletingId}
               pageTotalSalary={pageTotalSalary}
               formatCurrency={formatCurrency}
@@ -397,11 +422,58 @@ export const EmployeeDashboard = () => {
         </BlankCard>
       </Stack>
 
+      <Dialog
+        open={isDeleteDialogOpen}
+        onClose={(_, reason) => {
+          if (reason === "backdropClick" || reason === "escapeKeyDown") {
+            if (isDeletingSelectedEmployee) {
+              return;
+            }
+          }
+          handleCancelDelete();
+        }}
+      >
+        <DialogTitle>Delete Employee</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete
+            {pendingDeleteEmployee ? ` ${pendingDeleteEmployee.name}` : " this employee"}?
+            This action cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelDelete} disabled={isDeletingSelectedEmployee}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConfirmDelete}
+            color="error"
+            variant="contained"
+            disabled={isDeletingSelectedEmployee}
+          >
+            {isDeletingSelectedEmployee ? "Deleting..." : "Delete"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <NewEmployeeDialog
         open={isCreateDialogOpen}
         onClose={() => setIsCreateDialogOpen(false)}
         onCreated={() => {
           pendingNotificationRef.current = "Employee created successfully.";
+          setReloadKey((prev) => prev + 1);
+        }}
+      />
+      <NewEmployeeDialog
+        open={isEditDialogOpen}
+        mode="edit"
+        employeeId={editingEmployeeId}
+        onClose={() => {
+          setIsEditDialogOpen(false);
+          setEditingEmployeeId(null);
+        }}
+        onUpdated={() => {
+          pendingNotificationRef.current = "Employee updated successfully.";
           setReloadKey((prev) => prev + 1);
         }}
       />

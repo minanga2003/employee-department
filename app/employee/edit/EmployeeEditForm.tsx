@@ -1,8 +1,20 @@
 "use client";
 
-import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import dayjs from "dayjs";
-import { Alert, Box, FormControlLabel, Stack } from "@mui/material";
+import {
+  Alert,
+  Box,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  FormControlLabel,
+  Stack,
+} from "@mui/material";
 import Grid from "@mui/material/Grid";
 
 import CustomAutocomplete from "@/components/forms/drop-down/custom-auto-complete";
@@ -47,6 +59,24 @@ type SubmissionState = "idle" | "submitting" | "success" | "error";
 
 type Option = { label: string; value: string };
 
+type EmployeeResponse = {
+  id: number;
+  empNo: number;
+  name: string;
+  dob?: string | null;
+  age?: number | null;
+  email: string;
+  departmentId?: number | null;
+  departmentName?: string | null;
+  sectionId?: number | null;
+  sectionName?: string | null;
+  basicSalary?: number | string | null;
+  travelAllowance?: number | string | null;
+  otherAllowance?: number | string | null;
+  totalSalary?: number | string | null;
+  active: boolean;
+};
+
 const initialState: FormState = {
   empNo: "",
   name: "",
@@ -75,7 +105,57 @@ const parseNumber = (value: string) => {
   return Number.isFinite(numeric) ? numeric : 0;
 };
 
+const MINIMUM_EMPLOYEE_AGE = 18;
+const getAgeValidationMessage = (age: number) =>
+  age > 0 && age < MINIMUM_EMPLOYEE_AGE
+    ? `Employees must be at least ${MINIMUM_EMPLOYEE_AGE} years old.`
+    : null;
+
+const NAME_ALLOWED_PATTERN = /^[A-Za-z\s.'-]+$/;
+const getNameValidationMessage = (value: string) =>
+  value && !NAME_ALLOWED_PATTERN.test(value)
+    ? "Name must contain only letters and allowed punctuation (spaces, apostrophes, periods, hyphens)."
+    : null;
+
+const resolveEmployeeSaveError = (status: number, message?: string) => {
+  const fallback =
+    status >= 500
+      ? "Failed to save employee. Please try again later."
+      : `Failed to save employee (${status}).`;
+
+  if (!message) {
+    return status === 400
+      ? "Unable to save employee. Please review the form and correct any errors."
+      : fallback;
+  }
+
+  const normalized = message.toLowerCase();
+  if (
+    status === 409 ||
+    normalized.includes("duplicate") ||
+    normalized.includes("already") ||
+    normalized.includes("exists") ||
+    normalized.includes("unique")
+  ) {
+    return "Employee number already exists. Please use a different EMP No.";
+  }
+
+  if (status === 400 || normalized.includes("bad request")) {
+    return "Unable to save employee. Please review the form and correct any errors.";
+  }
+
+  return message;
+};
+
 export const EmployeeEditForm = () => {
+  const searchParams = useSearchParams();
+  const employeeIdParam = searchParams.get("id");
+  const employeeId = useMemo(() => {
+    if (!employeeIdParam) return null;
+    const parsed = Number(employeeIdParam);
+    return Number.isFinite(parsed) ? parsed : null;
+  }, [employeeIdParam]);
+
   const [formState, setFormState] = useState<FormState>(initialState);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
@@ -84,11 +164,114 @@ export const EmployeeEditForm = () => {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loadingSections, setLoadingSections] = useState(false);
   const [loadingDepartments, setLoadingDepartments] = useState(false);
+  const [loadingEmployee, setLoadingEmployee] = useState(false);
+  const [loadedFormState, setLoadedFormState] = useState<FormState | null>(null);
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+  const [isBackDialogOpen, setIsBackDialogOpen] = useState(false);
+  const [dobError, setDobError] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [empNoError, setEmpNoError] = useState<string | null>(null);
+  const [departmentError, setDepartmentError] = useState<string | null>(null);
+  const [sectionError, setSectionError] = useState<string | null>(null);
+  const [basicSalaryError, setBasicSalaryError] = useState<string | null>(null);
 
   const totalSalaryLabel = useMemo(
     () => formatCurrency(formState.totalSalary),
     [formState.totalSalary]
   );
+
+  useEffect(() => {
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setSubmissionState("idle");
+    setLoadedFormState(null);
+
+    if (!employeeId) {
+      setFormState(initialState);
+      setSections([]);
+      setDobError(null);
+      setNameError(null);
+      setEmpNoError(null);
+      setDepartmentError(null);
+      setSectionError(null);
+      setBasicSalaryError(null);
+      return;
+    }
+    setSections([]);
+
+    const controller = new AbortController();
+    let isActive = true;
+
+    const toInputString = (value: unknown) => {
+      if (value === null || value === undefined) return "";
+      return typeof value === "number" ? value.toString() : String(value);
+    };
+
+    const loadEmployee = async () => {
+      setLoadingEmployee(true);
+      try {
+        const url = buildApiUrl(`/api/employees/${employeeId}`);
+        const response = await fetch(url, { signal: controller.signal });
+        if (!response.ok) {
+          const body = await response.text();
+          throw new Error(body || `Failed to load employee (${response.status})`);
+        }
+
+        const data = (await response.json()) as EmployeeResponse;
+        if (!isActive) return;
+
+        const nextState: FormState = {
+          empNo: toInputString(data.empNo ?? ""),
+          name: data.name ?? "",
+          dob: data.dob ?? "",
+          age: data.age ?? calculateAge(data.dob ?? ""),
+          departmentId: data.departmentId ? String(data.departmentId) : "",
+          sectionId: data.sectionId ? String(data.sectionId) : "",
+          email: data.email ?? "",
+          basicSalary: toInputString(data.basicSalary ?? ""),
+          travelAllowance: toInputString(data.travelAllowance ?? ""),
+          otherAllowance: toInputString(data.otherAllowance ?? ""),
+          totalSalary: 0,
+          active: Boolean(data.active),
+        };
+        nextState.totalSalary = calculateTotalSalary(nextState);
+
+        setFormState(nextState);
+        setLoadedFormState(nextState);
+        setDobError(getAgeValidationMessage(nextState.age));
+        setNameError(getNameValidationMessage(nextState.name));
+        setEmpNoError(null);
+        setDepartmentError(null);
+        setSectionError(null);
+        setBasicSalaryError(null);
+      } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") return;
+        if (!isActive) return;
+        setErrorMessage(
+          err instanceof Error ? err.message : "Something went wrong while loading the employee."
+        );
+        setFormState(initialState);
+        setSections([]);
+        setDobError(null);
+        setNameError(null);
+        setEmpNoError(null);
+        setDepartmentError(null);
+        setSectionError(null);
+        setBasicSalaryError(null);
+      } finally {
+        if (isActive) {
+          setLoadingEmployee(false);
+        }
+      }
+    };
+
+    loadEmployee();
+
+    return () => {
+      isActive = false;
+      controller.abort();
+    };
+  }, [employeeId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -225,6 +408,13 @@ export const EmployeeEditForm = () => {
 
       if (name === "dob") {
         updated.age = calculateAge(value);
+        setDobError(getAgeValidationMessage(updated.age));
+      } else if (name === "name") {
+        setNameError(getNameValidationMessage(value));
+      } else if (name === "empNo") {
+        setEmpNoError(value.trim() ? null : "Employee number is required.");
+      } else if (name === "basicSalary") {
+        setBasicSalaryError(value.trim() ? null : "Basic salary is required.");
       }
 
       if (["basicSalary", "travelAllowance", "otherAllowance"].includes(name)) {
@@ -251,12 +441,52 @@ export const EmployeeEditForm = () => {
     return basic + travel + other;
   };
 
-  const resetForm = () => {
-    setFormState(initialState);
-    setSections([]);
+  const performReset = useCallback(() => {
+    if (employeeId && loadedFormState) {
+      setFormState(loadedFormState);
+    } else {
+      setFormState(initialState);
+      setSections([]);
+    }
     setErrorMessage(null);
     setSuccessMessage(null);
     setSubmissionState("idle");
+    setDobError(
+      employeeId && loadedFormState ? getAgeValidationMessage(loadedFormState.age) : null
+    );
+    setNameError(
+      employeeId && loadedFormState ? getNameValidationMessage(loadedFormState.name) : null
+    );
+    setEmpNoError(null);
+    setDepartmentError(null);
+    setSectionError(null);
+    setBasicSalaryError(null);
+  }, [employeeId, loadedFormState]);
+
+  const handleRequestReset = () => {
+    setIsResetDialogOpen(true);
+  };
+
+  const handleCancelReset = () => {
+    setIsResetDialogOpen(false);
+  };
+
+  const handleConfirmReset = () => {
+    performReset();
+    setIsResetDialogOpen(false);
+  };
+
+  const handleRequestBack = () => {
+    setIsBackDialogOpen(true);
+  };
+
+  const handleCancelBack = () => {
+    setIsBackDialogOpen(false);
+  };
+
+  const handleConfirmBack = () => {
+    setIsBackDialogOpen(false);
+    window.history.back();
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -264,6 +494,68 @@ export const EmployeeEditForm = () => {
     setSubmissionState("submitting");
     setErrorMessage(null);
     setSuccessMessage(null);
+
+    const trimmedEmpNo = formState.empNo.trim();
+    const trimmedName = formState.name.trim();
+    const trimmedBasicSalary = formState.basicSalary.trim();
+
+    if (!trimmedEmpNo) {
+      setSubmissionState("error");
+      setEmpNoError("Employee number is required.");
+      setErrorMessage("Employee number is required.");
+      return;
+    }
+
+    if (!trimmedName) {
+      setSubmissionState("error");
+      setNameError("Name is required.");
+      setErrorMessage("Name is required.");
+      return;
+    }
+
+    if (!formState.dob) {
+      setSubmissionState("error");
+      setDobError("Date of birth is required.");
+      setErrorMessage("Date of birth is required.");
+      return;
+    }
+
+    const nameValidation = getNameValidationMessage(trimmedName);
+    if (nameValidation) {
+      setSubmissionState("error");
+      setNameError(nameValidation);
+      setErrorMessage(nameValidation);
+      return;
+    }
+
+    const ageError = getAgeValidationMessage(formState.age);
+    if (ageError) {
+      setSubmissionState("error");
+      setDobError(ageError);
+      setErrorMessage(ageError);
+      return;
+    }
+
+    if (!formState.departmentId) {
+      setSubmissionState("error");
+      setDepartmentError("Department is required.");
+      setErrorMessage("Department is required.");
+      return;
+    }
+
+    if (!formState.sectionId) {
+      setSubmissionState("error");
+      setSectionError("Section is required.");
+      setErrorMessage("Section is required.");
+      return;
+    }
+
+    if (!trimmedBasicSalary) {
+      setSubmissionState("error");
+      setBasicSalaryError("Basic salary is required.");
+      setErrorMessage("Basic salary is required.");
+      return;
+    }
 
     const payload = {
       empNo: Number(formState.empNo),
@@ -283,9 +575,12 @@ export const EmployeeEditForm = () => {
         throw new Error("Please select both department and section.");
       }
 
-      const url = buildApiUrl("/api/employees");
+      const isEdit = Boolean(employeeId);
+      const url = isEdit
+        ? buildApiUrl(`/api/employees/${employeeId}`)
+        : buildApiUrl("/api/employees");
       const response = await fetch(url, {
-        method: "POST",
+        method: isEdit ? "PUT" : "POST",
         headers: {
           "Content-Type": "application/json",
         },
@@ -293,14 +588,84 @@ export const EmployeeEditForm = () => {
       });
 
       if (!response.ok) {
-        const errorBody = await response.text();
-        throw new Error(errorBody || `Failed to save employee (${response.status})`);
+        let errorMessageFromServer = "";
+        try {
+          const contentType = response.headers.get("content-type") ?? "";
+          if (contentType.includes("application/json")) {
+            const errorJson = await response.json();
+            if (typeof errorJson === "string") {
+              errorMessageFromServer = errorJson;
+            } else if (errorJson && typeof errorJson === "object") {
+              errorMessageFromServer =
+                (errorJson.message as string) ??
+                (errorJson.error as string) ??
+                (errorJson.detail as string) ??
+                "";
+            }
+          } else {
+            errorMessageFromServer = (await response.text()) ?? "";
+          }
+        } catch {
+          errorMessageFromServer = "";
+        }
+
+        throw new Error(resolveEmployeeSaveError(response.status, errorMessageFromServer.trim()));
+      }
+
+      let responseData: EmployeeResponse | null = null;
+      try {
+        const contentType = response.headers.get("content-type") ?? "";
+        if (contentType.includes("application/json")) {
+          responseData = (await response.json()) as EmployeeResponse;
+        }
+      } catch {
+        responseData = null;
+      }
+
+      const successText = isEdit ? "Employee updated successfully." : "Employee saved successfully.";
+
+      if (isEdit) {
+        if (responseData) {
+          const toInputString = (value: unknown) => {
+            if (value === null || value === undefined) return "";
+            return typeof value === "number" ? value.toString() : String(value);
+          };
+          const nextState: FormState = {
+            empNo: toInputString(responseData.empNo ?? payload.empNo),
+            name: responseData.name ?? payload.name,
+            dob: responseData.dob ?? payload.dob ?? "",
+            age: responseData.age ?? calculateAge(responseData.dob ?? payload.dob ?? ""),
+            departmentId: responseData.departmentId
+              ? String(responseData.departmentId)
+              : payload.departmentId
+              ? String(payload.departmentId)
+              : "",
+            sectionId: responseData.sectionId
+              ? String(responseData.sectionId)
+              : payload.sectionId
+              ? String(payload.sectionId)
+              : "",
+            email: responseData.email ?? payload.email,
+            basicSalary: toInputString(responseData.basicSalary ?? payload.basicSalary),
+            travelAllowance: toInputString(responseData.travelAllowance ?? payload.travelAllowance),
+            otherAllowance: toInputString(responseData.otherAllowance ?? payload.otherAllowance),
+            totalSalary: 0,
+            active:
+              typeof responseData.active === "boolean" ? responseData.active : payload.active ?? true,
+          };
+          nextState.totalSalary = calculateTotalSalary(nextState);
+          setFormState(nextState);
+          setLoadedFormState(nextState);
+          setDobError(getAgeValidationMessage(nextState.age));
+        }
+      } else {
+        setFormState(initialState);
+        setSections([]);
+        setDobError(null);
       }
 
       setSubmissionState("success");
-      setSuccessMessage("Employee saved successfully.");
-      setFormState(initialState);
-      setSections([]);
+      setSuccessMessage(successText);
     } catch (err) {
       setSubmissionState("error");
       setErrorMessage(err instanceof Error ? err.message : "Failed to save employee.");
@@ -318,9 +683,9 @@ export const EmployeeEditForm = () => {
   );
 
   return (
-    <PageContainer title="Employee | Edit">
+    <PageContainer title={employeeId ? "Employee | Edit" : "Employee | Create"}>
       <Breadcrumb
-        title="Employee Create / Edit"
+        title={employeeId ? "Employee Edit" : "Employee Create"}
         onBackClick={() => window.history.back()}
       />
 
@@ -345,12 +710,16 @@ export const EmployeeEditForm = () => {
                   variant="contained"
                   loading={submissionState === "submitting"}
                 >
-                  Save
+                  {employeeId ? "Update" : "Save"}
                 </ButtonLoader>
-                <CustomButtonWithIcon variant="outlined" onClick={resetForm}>
+                <CustomButtonWithIcon variant="outlined" onClick={handleRequestReset}>
                   Clear
                 </CustomButtonWithIcon>
-                <CustomButtonWithIcon variant="outlined" onClick={() => window.history.back()}>
+                <CustomButtonWithIcon
+                  variant="outlined"
+                  onClick={handleRequestBack}
+                  disabled={submissionState === "submitting"}
+                >
                   Back
                 </CustomButtonWithIcon>
               </Stack>
@@ -362,7 +731,10 @@ export const EmployeeEditForm = () => {
                     label="EMP No"
                     value={formState.empNo}
                     onChange={handleInputChange}
+                    error={Boolean(empNoError)}
+                    helperText={empNoError ?? ""}
                     required
+                    disabled={loadingEmployee}
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
@@ -371,20 +743,36 @@ export const EmployeeEditForm = () => {
                     label="Name"
                     value={formState.name}
                     onChange={handleInputChange}
+                    error={Boolean(nameError)}
+                    helperText={nameError ?? ""}
                     required
+                    disabled={loadingEmployee}
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
                   <CustomDatePicker
                     label="Date of Birth"
                     value={formState.dob}
-                    onChange={(value) =>
+                  onChange={(value) => {
+                    const nextDob = value ?? "";
+                    const nextAge = value ? calculateAge(value) : 0;
                       setFormState((prev) => ({
                         ...prev,
-                        dob: value ?? "",
-                        age: value ? calculateAge(value) : 0,
-                      }))
-                    }
+                      dob: nextDob,
+                      age: nextAge,
+                    }));
+                    setDobError(
+                      getAgeValidationMessage(nextAge) ?? (nextDob ? null : "Date of birth is required.")
+                    );
+                  }}
+                    disabled={loadingEmployee}
+                  slotProps={{
+                    textField: {
+                      helperText: dobError ?? "",
+                      error: Boolean(dobError),
+                      required: true,
+                    },
+                  }}
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
@@ -406,9 +794,15 @@ export const EmployeeEditForm = () => {
                         departmentId: option?.value ?? "",
                         sectionId: "",
                       }));
+                      setDepartmentError(option ? null : "Department is required.");
+                      setSectionError("Section is required.");
                     }}
                     disabled={loadingDepartments}
-                    helperText={loadingDepartments ? "Loading departments…" : ""}
+                    error={Boolean(departmentError)}
+                    helperText={
+                      loadingDepartments ? "Loading departments…" : departmentError ?? ""
+                    }
+                    required
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
@@ -416,19 +810,21 @@ export const EmployeeEditForm = () => {
                     label="Section"
                     options={sectionOptions}
                     value={selectedSectionOption}
-                    onChange={(_, option) =>
+                    onChange={(_, option) => {
                       setFormState((prev) => ({
                         ...prev,
                         sectionId: option?.value ?? "",
-                      }))
-                    }
+                      }));
+                      setSectionError(option ? null : "Section is required.");
+                    }}
                     disabled={!formState.departmentId || loadingSections}
+                    error={Boolean(sectionError)}
                     helperText={
                       !formState.departmentId
                         ? "Select department first"
                         : loadingSections
                         ? "Loading sections…"
-                        : ""
+                        : sectionError ?? ""
                     }
                   />
                 </Grid>
@@ -439,7 +835,7 @@ export const EmployeeEditForm = () => {
                     type="email"
                     value={formState.email}
                     onChange={handleInputChange}
-                    required
+                    disabled={loadingEmployee}
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
@@ -448,7 +844,10 @@ export const EmployeeEditForm = () => {
                     label="Basic Salary"
                     value={formState.basicSalary}
                     onChange={handleInputChange}
+                    error={Boolean(basicSalaryError)}
+                    helperText={basicSalaryError ?? ""}
                     required
+                    disabled={loadingEmployee}
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
@@ -457,6 +856,7 @@ export const EmployeeEditForm = () => {
                     label="Travel Allowance"
                     value={formState.travelAllowance}
                     onChange={handleInputChange}
+                    disabled={loadingEmployee}
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
@@ -465,6 +865,7 @@ export const EmployeeEditForm = () => {
                     label="Other Allowance"
                     value={formState.otherAllowance}
                     onChange={handleInputChange}
+                    disabled={loadingEmployee}
                   />
                 </Grid>
               </Grid>
@@ -475,6 +876,7 @@ export const EmployeeEditForm = () => {
                     name="active"
                     checked={formState.active}
                     onChange={handleInputChange}
+                    disabled={loadingEmployee}
                   />
                 }
                 label="Active"
@@ -488,6 +890,52 @@ export const EmployeeEditForm = () => {
 
         <SummaryCard data={salarySummary} title="Salary Summary" />
       </Stack>
+
+      <Dialog
+        open={isResetDialogOpen}
+        onClose={(_, reason) => {
+          if (reason === "backdropClick" || reason === "escapeKeyDown") {
+            return;
+          }
+          handleCancelReset();
+        }}
+      >
+        <DialogTitle>Clear Form</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to clear all form fields? Any unsaved changes will be lost.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelReset}>Cancel</Button>
+          <Button color="error" variant="contained" onClick={handleConfirmReset}>
+            Clear
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={isBackDialogOpen}
+        onClose={(_, reason) => {
+          if (reason === "backdropClick" || reason === "escapeKeyDown") {
+            return;
+          }
+          handleCancelBack();
+        }}
+      >
+        <DialogTitle>Leave Page</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to go back? Any unsaved changes will be lost.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelBack}>Stay</Button>
+          <Button color="error" variant="contained" onClick={handleConfirmBack}>
+            Go Back
+          </Button>
+        </DialogActions>
+      </Dialog>
     </PageContainer>
   );
 };

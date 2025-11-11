@@ -61,6 +61,7 @@ export type CustomAutocompleteProps<T extends DefaultOption> = {
   error?: boolean;
   helperText?: string;
   id?: string;
+  required?: boolean;
   [key: string]: unknown;
 };
 
@@ -75,6 +76,7 @@ const CustomAutocomplete = <T extends DefaultOption>({
   error,
   helperText,
   id,
+  required = false,
   ...props
 }: CustomAutocompleteProps<T>) => {
   const selectedOption = useMemo(
@@ -142,6 +144,7 @@ const CustomAutocomplete = <T extends DefaultOption>({
             error={error}
             helperText={helperText}
             id={id}
+            required={required}
           />
         )}
         componentsProps={{
