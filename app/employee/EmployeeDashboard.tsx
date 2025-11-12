@@ -57,7 +57,12 @@ const formatCurrency = (amount: number) =>
     minimumFractionDigits: 2,
   }).format(amount);
 
-type Option = { label: string; value: string };
+type Option = { 
+  label: string; 
+  value: string; 
+  status?: number; // 1 = active, 0 = inactive
+  disabled?: boolean;
+};
 
 export const EmployeeDashboard = () => {
   const [activeOnly, setActiveOnly] = useState(true);
@@ -103,6 +108,7 @@ export const EmployeeDashboard = () => {
               .map((item) => ({
                 id: Number(item.id),
                 name: item.name,
+                status: item.status !== undefined ? Number(item.status) : 1, // Default to active if not provided
               }))
               .sort((a, b) => a.name.localeCompare(b.name))
           );
@@ -147,13 +153,40 @@ export const EmployeeDashboard = () => {
         const data = (await response.json()) as Section[] | Section;
         const items = Array.isArray(data) ? data : [data];
         if (isActive) {
+          // Map sections and deduplicate by name
+          // Strategy: Collect all sections by name, then pick the best one (active preferred, then lowest ID)
+          const sectionsByName = new Map<string, Array<{ id: number; name: string; status: number }>>();
+          
+          // First pass: collect all sections grouped by name
+          items.forEach((item) => {
+            const sectionName = item.name;
+            const sectionId = Number(item.id);
+            const sectionStatus = item.status !== undefined ? Number(item.status) : 1;
+            
+            if (!sectionsByName.has(sectionName)) {
+              sectionsByName.set(sectionName, []);
+            }
+            sectionsByName.get(sectionName)!.push({
+              id: sectionId,
+              name: sectionName,
+              status: sectionStatus,
+            });
+          });
+          
+          // Second pass: for each section name, pick the best one
+          // Strategy: Prefer higher ID when duplicates exist (higher ID is the correct/canonical entry)
+          // If multiple with same status, prefer higher ID
+          // If one active and one inactive, prefer the one with higher ID (canonical entry)
+          const sectionMap = new Map<string, { id: number; name: string; status: number }>();
+          sectionsByName.forEach((sections, name) => {
+            // Sort: by ID descending (higher ID first - canonical entry)
+            const sorted = sections.sort((a, b) => b.id - a.id); // Higher ID first
+            // Pick the first one (highest ID - canonical entry)
+            sectionMap.set(name, sorted[0]);
+          });
+          // Convert map values to array and sort
           setSections(
-            items
-              .map((item) => ({
-                id: Number(item.id),
-                name: item.name,
-              }))
-              .sort((a, b) => a.name.localeCompare(b.name))
+            Array.from(sectionMap.values()).sort((a, b) => a.name.localeCompare(b.name))
           );
         }
       } catch (err) {
@@ -202,7 +235,22 @@ export const EmployeeDashboard = () => {
 
         const response = await fetch(url, { signal: controller.signal });
         if (!response.ok) {
-          throw new Error(`Failed to load employees (${response.status})`);
+          let errorMessage = `Failed to load employees (${response.status})`;
+          try {
+            const errorData = await response.json();
+            if (errorData && typeof errorData === "object") {
+              if (errorData.message) {
+                errorMessage = errorData.message;
+              } else if (errorData.error) {
+                errorMessage = errorData.error;
+              }
+            } else if (typeof errorData === "string") {
+              errorMessage = errorData;
+            }
+          } catch {
+            // If we can't parse the error response, use the default message
+          }
+          throw new Error(errorMessage);
         }
         const raw = (await response.json()) as PagedEmployeesResponse;
         if (!isActive) return;
@@ -231,10 +279,13 @@ export const EmployeeDashboard = () => {
         setEmployees([]);
         setPageTotalSalary(0);
         pendingNotificationRef.current = null;
+        const errorMessage = err instanceof Error 
+          ? err.message 
+          : "Something went wrong while fetching employees";
         setError(
-          err instanceof Error
-            ? err.message
-            : "Something went wrong while fetching employees"
+          errorMessage.includes("500") 
+            ? "Server error: Unable to load employees. Please check the backend server logs for details."
+            : errorMessage
         );
       } finally {
         if (isActive) {
@@ -257,6 +308,10 @@ export const EmployeeDashboard = () => {
       departments.map((dept) => ({
         label: dept.name,
         value: String(dept.id),
+        status: dept.status,
+        // In dashboard, inactive departments can still be used for filtering
+        // but will be displayed in gray to indicate they're inactive
+        disabled: false,
       }))
     );
   }, [departments]);
@@ -267,6 +322,10 @@ export const EmployeeDashboard = () => {
       sections.map((sec) => ({
         label: sec.name,
         value: String(sec.id),
+        status: sec.status,
+        // In dashboard, inactive sections can still be used for filtering
+        // but will be displayed in gray to indicate they're inactive
+        disabled: false,
       }))
     );
   }, [sections]);

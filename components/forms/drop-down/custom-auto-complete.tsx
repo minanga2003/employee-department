@@ -11,6 +11,8 @@ export type DefaultOption = {
   label: string;
   value: unknown;
   isDelete?: string | number;
+  disabled?: boolean;
+  status?: number; // 1 = active, 0 = inactive
   [key: string]: unknown;
 };
 
@@ -95,7 +97,11 @@ const CustomAutocomplete = <T extends DefaultOption>({
         id={id}
         sx={{
           "& .MuiOutlinedInput-input": {
-            color: selectedOption?.isDelete === "YES" ? theme.palette.error.main : "inherit",
+            color: selectedOption?.isDelete === "YES" 
+              ? theme.palette.error.main 
+              : selectedOption?.status === 0
+              ? "#9e9e9e" // Gray/ash color for inactive
+              : "inherit",
           },
         }}
         getOptionLabel={(option: unknown) => {
@@ -104,6 +110,17 @@ const CustomAutocomplete = <T extends DefaultOption>({
             return (option as DefaultOption).label ?? "";
           }
           return "";
+        }}
+        getOptionKey={(option: unknown) => {
+          // Use value as key to ensure uniqueness (values are IDs and should be unique)
+          if (option && typeof option === "object" && "value" in option) {
+            return String((option as DefaultOption).value);
+          }
+          // Fallback to label if value doesn't exist (shouldn't happen)
+          if (option && typeof option === "object" && "label" in option) {
+            return String((option as DefaultOption).label);
+          }
+          return String(option);
         }}
         isOptionEqualToValue={(option: unknown, optionValue: unknown) => {
           if (
@@ -118,18 +135,41 @@ const CustomAutocomplete = <T extends DefaultOption>({
           }
           return false;
         }}
+        getOptionDisabled={(option: unknown) => {
+          if (option && typeof option === "object" && "disabled" in option) {
+            return (option as DefaultOption).disabled === true;
+          }
+          // Only disable if explicitly set to disabled
+          // Status alone doesn't disable (status is used for styling in dashboard filters)
+          return false;
+        }}
         renderOption={(renderProps, option: unknown, { selected }) => {
-          const { key, ...otherProps } = renderProps;
+          const { key: muiKey, ...otherProps } = renderProps;
           const typedOption = option as DefaultOption;
           const isDeleted = typedOption?.isDelete === "YES" || typedOption?.isDelete === 1;
+          const isDisabled = typedOption?.disabled === true; // Only check disabled flag, not status
+          const isInactive = typedOption?.status === 0;
+          
+          // Use value (ID) as key to ensure uniqueness, fallback to MUI's key if value doesn't exist
+          const uniqueKey = typedOption?.value !== undefined 
+            ? String(typedOption.value) 
+            : muiKey;
 
           return (
             <li
-              key={key}
+              key={uniqueKey}
               {...otherProps}
               style={{
-                color: isDeleted ? theme.palette.error.main : "inherit",
-                opacity: isDeleted && !selected ? 0.8 : 1,
+                color: isDeleted 
+                  ? theme.palette.error.main 
+                  : isInactive 
+                  ? "#9e9e9e" // Gray/ash color for inactive
+                  : "inherit",
+                opacity: (isDeleted || isInactive) && !selected ? 0.6 : 1,
+                cursor: isDisabled ? "not-allowed" : "pointer",
+                backgroundColor: selected 
+                  ? (isInactive ? "rgba(158, 158, 158, 0.1)" : undefined)
+                  : undefined,
               }}
             >
               {typedOption.label ?? ""}

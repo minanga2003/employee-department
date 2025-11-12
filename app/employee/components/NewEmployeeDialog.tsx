@@ -35,11 +35,13 @@ import { buildApiUrl } from "@/lib/apiConfig";
 type Department = {
   id: number;
   name: string;
+  status?: number; // 1 = active, 0 = inactive
 };
 
 type Section = {
   id: number;
   name: string;
+  status?: number; // 1 = active, 0 = inactive
 };
 
 type FormState = {
@@ -59,7 +61,12 @@ type FormState = {
 
 type SubmissionState = "idle" | "submitting";
 
-type Option = { label: string; value: string };
+type Option = { 
+  label: string; 
+  value: string; 
+  status?: number; // 1 = active, 0 = inactive
+  disabled?: boolean;
+};
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("en-US", {
@@ -236,6 +243,7 @@ export const NewEmployeeDialog = ({
               .map((dept) => ({
                 id: Number(dept.id),
                 name: dept.name,
+                status: dept.status !== undefined ? Number(dept.status) : 1, // Default to active if not provided
               }))
               .sort((a, b) => a.name.localeCompare(b.name))
           );
@@ -381,13 +389,40 @@ export const NewEmployeeDialog = ({
         const data = (await response.json()) as Section[] | Section;
         const list = Array.isArray(data) ? data : [data];
         if (isActive) {
+          // Map sections and deduplicate by name
+          // Strategy: Collect all sections by name, then pick the best one (active preferred, then lowest ID)
+          const sectionsByName = new Map<string, Array<{ id: number; name: string; status: number }>>();
+          
+          // First pass: collect all sections grouped by name
+          list.forEach((sec) => {
+            const sectionName = sec.name;
+            const sectionId = Number(sec.id);
+            const sectionStatus = sec.status !== undefined ? Number(sec.status) : 1;
+            
+            if (!sectionsByName.has(sectionName)) {
+              sectionsByName.set(sectionName, []);
+            }
+            sectionsByName.get(sectionName)!.push({
+              id: sectionId,
+              name: sectionName,
+              status: sectionStatus,
+            });
+          });
+          
+          // Second pass: for each section name, pick the best one
+          // Strategy: Prefer higher ID when duplicates exist (higher ID is the correct/canonical entry)
+          // If multiple with same status, prefer higher ID
+          // If one active and one inactive, prefer the one with higher ID (canonical entry)
+          const sectionMap = new Map<string, { id: number; name: string; status: number }>();
+          sectionsByName.forEach((sections, name) => {
+            // Sort: by ID descending (higher ID first - canonical entry)
+            const sorted = sections.sort((a, b) => b.id - a.id); // Higher ID first
+            // Pick the first one (highest ID - canonical entry)
+            sectionMap.set(name, sorted[0]);
+          });
+          // Convert map values to array and sort
           setSections(
-            list
-              .map((sec) => ({
-                id: Number(sec.id),
-                name: sec.name,
-              }))
-              .sort((a, b) => a.name.localeCompare(b.name))
+            Array.from(sectionMap.values()).sort((a, b) => a.name.localeCompare(b.name))
           );
         }
       } catch (err) {
@@ -453,6 +488,8 @@ export const NewEmployeeDialog = ({
     return departments.map((dept) => ({
       label: dept.name,
       value: String(dept.id),
+      status: dept.status,
+      disabled: dept.status === 0, // Disable inactive departments
     }));
   }, [departments]);
 
@@ -461,6 +498,8 @@ export const NewEmployeeDialog = ({
     return sections.map((section) => ({
       label: section.name,
       value: String(section.id),
+      status: section.status,
+      disabled: section.status === 0, // Disable inactive sections
     }));
   }, [sections]);
 
@@ -600,10 +639,28 @@ export const NewEmployeeDialog = ({
       return;
     }
 
+    // Check if selected department is active
+    const selectedDept = departments.find((d) => String(d.id) === formState.departmentId);
+    if (selectedDept && selectedDept.status === 0) {
+      setSubmissionState("idle");
+      setDepartmentError("Cannot select an inactive department.");
+      setErrorMessage("Cannot select an inactive department.");
+      return;
+    }
+
     if (!formState.sectionId) {
       setSubmissionState("idle");
       setSectionError("Section is required.");
       setErrorMessage("Section is required.");
+      return;
+    }
+
+    // Check if selected section is active
+    const selectedSec = sections.find((s) => String(s.id) === formState.sectionId);
+    if (selectedSec && selectedSec.status === 0) {
+      setSubmissionState("idle");
+      setSectionError("Cannot select an inactive section.");
+      setErrorMessage("Cannot select an inactive section.");
       return;
     }
 
@@ -939,13 +996,20 @@ export const NewEmployeeDialog = ({
                         options={departmentOptions}
                         value={selectedDepartmentOption}
                         onChange={(_, option) => {
+                          // Prevent selecting inactive departments (should be disabled, but check for safety)
+                          if (option && option.status === 0) {
+                            setDepartmentError("Cannot select an inactive department.");
+                            setErrorMessage("Cannot select an inactive department.");
+                            return;
+                          }
                           setFormState((prev) => ({
                             ...prev,
                             departmentId: option?.value ?? "",
                             sectionId: "",
                           }));
-                            setDepartmentError(option ? null : "Department is required.");
-                            setSectionError("Section is required.");
+                          setDepartmentError(option ? null : "Department is required.");
+                          setSectionError("Section is required.");
+                          setErrorMessage(null);
                         }}
                         disabled={loadingDepartments || isBusy}
                           error={Boolean(departmentError)}
@@ -960,13 +1024,20 @@ export const NewEmployeeDialog = ({
                         label="Section"
                         options={sectionOptions}
                         value={selectedSectionOption}
-                          onChange={(_, option) => {
+                        onChange={(_, option) => {
+                          // Prevent selecting inactive sections (should be disabled, but check for safety)
+                          if (option && option.status === 0) {
+                            setSectionError("Cannot select an inactive section.");
+                            setErrorMessage("Cannot select an inactive section.");
+                            return;
+                          }
                           setFormState((prev) => ({
                             ...prev,
                             sectionId: option?.value ?? "",
-                            }));
-                            setSectionError(option ? null : "Section is required.");
-                          }}
+                          }));
+                          setSectionError(option ? null : "Section is required.");
+                          setErrorMessage(null);
+                        }}
                         disabled={!formState.departmentId || loadingSections || isBusy}
                           error={Boolean(sectionError)}
                         helperText={
@@ -1024,7 +1095,8 @@ export const NewEmployeeDialog = ({
                 </Stack>
 
                 {isEditMode && (
-                  <Stack sx={{ width: "100%" }}>
+                  <Stack spacing={2} sx={{ width: "100%" }}>
+                    <SectionHeader label="Status" />
                     <FormControlLabel
                       control={
                         <CustomCheckbox

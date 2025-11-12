@@ -12,8 +12,11 @@ import {
   DialogContent,
   DialogContentText,
   DialogTitle,
+  Divider,
   FormControlLabel,
   Stack,
+  Typography,
+  useTheme,
 } from "@mui/material";
 import Grid from "@mui/material/Grid";
 
@@ -33,11 +36,13 @@ import { buildApiUrl } from "../../../lib/apiConfig";
 type Department = {
   id: number;
   name: string;
+  status?: number; // 1 = active, 0 = inactive
 };
 
 type Section = {
   id: number;
   name: string;
+  status?: number; // 1 = active, 0 = inactive
 };
 
 type FormState = {
@@ -57,7 +62,12 @@ type FormState = {
 
 type SubmissionState = "idle" | "submitting" | "success" | "error";
 
-type Option = { label: string; value: string };
+type Option = { 
+  label: string; 
+  value: string; 
+  status?: number; // 1 = active, 0 = inactive
+  disabled?: boolean;
+};
 
 type EmployeeResponse = {
   id: number;
@@ -145,6 +155,46 @@ const resolveEmployeeSaveError = (status: number, message?: string) => {
   }
 
   return message;
+};
+
+const SectionHeader = ({ label }: { label: string }) => {
+  const theme = useTheme();
+
+  return (
+    <Stack
+      direction="row"
+      alignItems="center"
+      spacing={2}
+      sx={{
+        pt: { xs: 1, sm: 2 },
+      }}
+    >
+      <Box
+        sx={{
+          width: 20,
+          borderBottom: `1px solid ${theme.palette.divider}`,
+        }}
+      />
+      <Typography
+        variant="subtitle2"
+        fontWeight={600}
+        sx={{
+          color: theme.palette.text.primary,
+          minWidth: { xs: "auto", sm: 160 },
+          fontSize: "0.85rem",
+          letterSpacing: 0.3,
+        }}
+      >
+        {label}
+      </Typography>
+      <Divider
+        sx={{
+          flexGrow: 1,
+          borderColor: theme.palette.divider,
+        }}
+      />
+    </Stack>
+  );
 };
 
 export const EmployeeEditForm = () => {
@@ -295,6 +345,7 @@ export const EmployeeEditForm = () => {
               .map((dept) => ({
                 id: Number(dept.id),
                 name: dept.name,
+                status: dept.status !== undefined ? Number(dept.status) : 1, // Default to active if not provided
               }))
               .sort((a, b) => a.name.localeCompare(b.name))
           );
@@ -340,13 +391,40 @@ export const EmployeeEditForm = () => {
         const data = (await response.json()) as Section[] | Section;
         const list = Array.isArray(data) ? data : [data];
         if (isActive) {
+          // Map sections and deduplicate by name
+          // Strategy: Collect all sections by name, then pick the best one (active preferred, then lowest ID)
+          const sectionsByName = new Map<string, Array<{ id: number; name: string; status: number }>>();
+          
+          // First pass: collect all sections grouped by name
+          list.forEach((sec) => {
+            const sectionName = sec.name;
+            const sectionId = Number(sec.id);
+            const sectionStatus = sec.status !== undefined ? Number(sec.status) : 1;
+            
+            if (!sectionsByName.has(sectionName)) {
+              sectionsByName.set(sectionName, []);
+            }
+            sectionsByName.get(sectionName)!.push({
+              id: sectionId,
+              name: sectionName,
+              status: sectionStatus,
+            });
+          });
+          
+          // Second pass: for each section name, pick the best one
+          // Strategy: Prefer higher ID when duplicates exist (higher ID is the correct/canonical entry)
+          // If multiple with same status, prefer higher ID
+          // If one active and one inactive, prefer the one with higher ID (canonical entry)
+          const sectionMap = new Map<string, { id: number; name: string; status: number }>();
+          sectionsByName.forEach((sections, name) => {
+            // Sort: by ID descending (higher ID first - canonical entry)
+            const sorted = sections.sort((a, b) => b.id - a.id); // Higher ID first
+            // Pick the first one (highest ID - canonical entry)
+            sectionMap.set(name, sorted[0]);
+          });
+          // Convert map values to array and sort
           setSections(
-            list
-              .map((sec) => ({
-                id: Number(sec.id),
-                name: sec.name,
-              }))
-              .sort((a, b) => a.name.localeCompare(b.name))
+            Array.from(sectionMap.values()).sort((a, b) => a.name.localeCompare(b.name))
           );
         }
       } catch (err) {
@@ -374,6 +452,8 @@ export const EmployeeEditForm = () => {
     return departments.map((dept) => ({
       label: dept.name,
       value: String(dept.id),
+      status: dept.status,
+      disabled: dept.status === 0, // Disable inactive departments
     }));
   }, [departments]);
 
@@ -382,6 +462,8 @@ export const EmployeeEditForm = () => {
     return sections.map((section) => ({
       label: section.name,
       value: String(section.id),
+      status: section.status,
+      disabled: section.status === 0, // Disable inactive sections
     }));
   }, [sections]);
 
@@ -573,10 +655,28 @@ export const EmployeeEditForm = () => {
       return;
     }
 
+    // Check if selected department is active
+    const selectedDept = departments.find((d) => String(d.id) === formState.departmentId);
+    if (selectedDept && selectedDept.status === 0) {
+      setSubmissionState("error");
+      setDepartmentError("Cannot select an inactive department.");
+      setErrorMessage("Cannot select an inactive department.");
+      return;
+    }
+
     if (!formState.sectionId) {
       setSubmissionState("error");
       setSectionError("Section is required.");
       setErrorMessage("Section is required.");
+      return;
+    }
+
+    // Check if selected section is active
+    const selectedSec = sections.find((s) => String(s.id) === formState.sectionId);
+    if (selectedSec && selectedSec.status === 0) {
+      setSubmissionState("error");
+      setSectionError("Cannot select an inactive section.");
+      setErrorMessage("Cannot select an inactive section.");
       return;
     }
 
@@ -587,6 +687,7 @@ export const EmployeeEditForm = () => {
       return;
     }
 
+    const isEdit = Boolean(employeeId);
     const payload = {
       empNo: Number(formState.empNo),
       name: formState.name.trim(),
@@ -597,7 +698,8 @@ export const EmployeeEditForm = () => {
       basicSalary: parseNumber(formState.basicSalary),
       travelAllowance: parseNumber(formState.travelAllowance),
       otherAllowance: parseNumber(formState.otherAllowance),
-      active: formState.active,
+      // New employees are always active. For updates, allow status change.
+      active: isEdit ? formState.active : true,
     };
 
     try {
@@ -819,6 +921,12 @@ export const EmployeeEditForm = () => {
                     options={departmentOptions}
                     value={selectedDepartmentOption}
                     onChange={(_, option) => {
+                      // Prevent selecting inactive departments (should be disabled, but check for safety)
+                      if (option && option.status === 0) {
+                        setDepartmentError("Cannot select an inactive department.");
+                        setErrorMessage("Cannot select an inactive department.");
+                        return;
+                      }
                       setFormState((prev) => ({
                         ...prev,
                         departmentId: option?.value ?? "",
@@ -826,6 +934,7 @@ export const EmployeeEditForm = () => {
                       }));
                       setDepartmentError(option ? null : "Department is required.");
                       setSectionError("Section is required.");
+                      setErrorMessage(null);
                     }}
                     disabled={loadingDepartments}
                     error={Boolean(departmentError)}
@@ -841,11 +950,18 @@ export const EmployeeEditForm = () => {
                     options={sectionOptions}
                     value={selectedSectionOption}
                     onChange={(_, option) => {
+                      // Prevent selecting inactive sections (should be disabled, but check for safety)
+                      if (option && option.status === 0) {
+                        setSectionError("Cannot select an inactive section.");
+                        setErrorMessage("Cannot select an inactive section.");
+                        return;
+                      }
                       setFormState((prev) => ({
                         ...prev,
                         sectionId: option?.value ?? "",
                       }));
                       setSectionError(option ? null : "Section is required.");
+                      setErrorMessage(null);
                     }}
                     disabled={!formState.departmentId || loadingSections}
                     error={Boolean(sectionError)}
@@ -900,20 +1016,25 @@ export const EmployeeEditForm = () => {
                 </Grid>
               </Grid>
 
-              <FormControlLabel
-                control={
-                  <CustomCheckbox
-                    name="active"
-                    checked={formState.active}
-                    onChange={handleInputChange}
-                    disabled={loadingEmployee}
+              {employeeId && (
+                <Stack spacing={2} sx={{ width: "100%" }}>
+                  <SectionHeader label="Status" />
+                  <FormControlLabel
+                    control={
+                      <CustomCheckbox
+                        name="active"
+                        checked={formState.active}
+                        onChange={handleInputChange}
+                        disabled={loadingEmployee}
+                      />
+                    }
+                    label="Active"
+                    sx={{
+                      "& .MuiTypography-root": { fontSize: "0.8rem" },
+                    }}
                   />
-                }
-                label="Active"
-                sx={{
-                  "& .MuiTypography-root": { fontSize: "0.8rem" },
-                }}
-              />
+                </Stack>
+              )}
             </Stack>
           </Box>
         </BlankCard>

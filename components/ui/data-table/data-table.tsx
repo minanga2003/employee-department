@@ -46,18 +46,17 @@ import {
 import CustomSelect from "@/components/forms/select/custom-select";
 
 declare module "@tanstack/react-table" {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  interface TableMeta<_TData extends RowData> {
+  interface TableMeta<TData extends RowData> {
     selectRow?: (rowId: string) => void;
     clearRowSelection?: () => void;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  interface ColumnMeta<_TData extends RowData, _TValue> {
+  interface ColumnMeta<TData extends RowData, TValue> {
     headerAlign?: "left" | "center" | "right";
     headerClassName?: string;
     headerSx?: Record<string, unknown>;
     hideSort?: boolean;
+    width?: number | string;
   }
 }
 
@@ -70,7 +69,11 @@ const StyledTableRow = styled(MuiTableRow)(({ theme }) => ({
     backgroundColor: theme.palette.primary.light,
   },
   "&.inactive-row": {
-    backgroundColor: "#f5f5f5",
+    backgroundColor: theme.palette.mode === "dark" ? "rgba(255, 255, 255, 0.05)" : "#f5f5f5",
+    opacity: 0.7,
+    "&:hover": {
+      backgroundColor: theme.palette.mode === "dark" ? "rgba(255, 255, 255, 0.08)" : "#e8e8e8",
+    },
   },
   "&.deleted-row": {
     backgroundColor: "#ffe6e6",
@@ -361,11 +364,11 @@ export function DataTable<T extends object>({
         onDragEnd={!isFirstColumn ? handleDragEnd : undefined}
         style={{
           width:
-            header.column.columnDef.width || columnWidths[header.column.id] || "auto",
+            header.column.columnDef.meta?.width || columnWidths[header.column.id] || header.column.columnDef.size || "auto",
           minWidth:
-            header.column.columnDef.width || columnWidths[header.column.id] || "auto",
+            header.column.columnDef.meta?.width || columnWidths[header.column.id] || header.column.columnDef.size || "auto",
           maxWidth:
-            header.column.columnDef.width || columnWidths[header.column.id] || "auto",
+            header.column.columnDef.meta?.width || columnWidths[header.column.id] || header.column.columnDef.size || "auto",
           position: "relative",
           cursor: resizing
             ? "col-resize"
@@ -584,7 +587,7 @@ function TablePaginationLocal<T extends object>({ table, isServerPagination }: T
         </Stack>
             <CustomSelect
               value={table.getState().pagination.pageSize}
-          onChange={(event: SelectChangeEvent) => {
+          onChange={(event: SelectChangeEvent<unknown>) => {
             table.setPageSize(Number(event.target.value));
           }}
           sx={{
