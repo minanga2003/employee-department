@@ -202,6 +202,8 @@ export const NewEmployeeDialog = ({
   const [loadedFormState, setLoadedFormState] = useState<FormState | null>(null);
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [isBackDialogOpen, setIsBackDialogOpen] = useState(false);
+  const [isSalaryConfirmDialogOpen, setIsSalaryConfirmDialogOpen] = useState(false);
+  const [pendingSubmit, setPendingSubmit] = useState(false);
   const [dobError, setDobError] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
   const [empNoError, setEmpNoError] = useState<string | null>(null);
@@ -433,6 +435,8 @@ export const NewEmployeeDialog = ({
     if (!open) {
       setIsResetDialogOpen(false);
       setIsBackDialogOpen(false);
+      setIsSalaryConfirmDialogOpen(false);
+      setPendingSubmit(false);
       setLoadedFormState(null);
       performReset();
       setDobError(null);
@@ -498,6 +502,12 @@ export const NewEmployeeDialog = ({
 
       if (["basicSalary", "travelAllowance", "otherAllowance"].includes(name)) {
         updated.totalSalary = calculateTotalSalary(updated);
+        
+        // Check if basic salary is less than or equal to total allowances
+        // Show confirmation dialog when condition is met
+        if (checkBasicSalaryValidation(updated)) {
+          setIsSalaryConfirmDialogOpen(true);
+        }
       }
 
       return updated;
@@ -520,6 +530,14 @@ export const NewEmployeeDialog = ({
     return basic + travel + other;
   };
 
+  const checkBasicSalaryValidation = (state: FormState) => {
+    const basic = parseNumber(state.basicSalary);
+    const travel = parseNumber(state.travelAllowance);
+    const other = parseNumber(state.otherAllowance);
+    const totalAllowances = travel + other;
+    return basic > 0 && totalAllowances > 0 && basic <= totalAllowances;
+  };
+
   const handleClose = () => {
     if (submissionState === "submitting" || loadingEmployee) return;
     onClose();
@@ -527,6 +545,10 @@ export const NewEmployeeDialog = ({
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    await performSubmit();
+  };
+
+  const performSubmit = async () => {
     setSubmissionState("submitting");
     setErrorMessage(null);
 
@@ -699,6 +721,16 @@ export const NewEmployeeDialog = ({
     if (isBusy) return;
     setIsBackDialogOpen(false);
     handleClose();
+  };
+
+  const handleCancelSalaryConfirm = () => {
+    setIsSalaryConfirmDialogOpen(false);
+    setPendingSubmit(false);
+  };
+
+  const handleConfirmSalaryConfirm = () => {
+    setIsSalaryConfirmDialogOpen(false);
+    setPendingSubmit(false);
   };
 
   return (
@@ -1066,6 +1098,33 @@ export const NewEmployeeDialog = ({
           </Button>
           <Button onClick={handleConfirmBack} color="error" variant="contained" disabled={isBusy}>
             Go Back
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={isSalaryConfirmDialogOpen}
+        onClose={(_, reason) => {
+          if (reason === "backdropClick" || reason === "escapeKeyDown") {
+            if (isBusy) {
+              return;
+            }
+          }
+          handleCancelSalaryConfirm();
+        }}
+      >
+        <DialogTitle>Confirm Salary</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Basic salary is less than or equal to the total allowances. Are you sure about that?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelSalaryConfirm} disabled={isBusy}>
+            Cancel
+          </Button>
+          <Button onClick={handleConfirmSalaryConfirm} color="primary" variant="contained" disabled={isBusy}>
+            Yes, Continue
           </Button>
         </DialogActions>
       </Dialog>
