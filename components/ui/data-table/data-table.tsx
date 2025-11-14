@@ -56,6 +56,7 @@ declare module "@tanstack/react-table" {
     headerClassName?: string;
     headerSx?: Record<string, unknown>;
     hideSort?: boolean;
+    hideDragHandle?: boolean;
     width?: number | string;
   }
 }
@@ -165,6 +166,13 @@ export function DataTable<T extends object>({
       ...userColumns,
     ];
   });
+
+  React.useEffect(() => {
+    if (!isExpandable) {
+      setColumns(userColumns);
+      return;
+    }
+  }, [isExpandable, userColumns]);
 
   React.useEffect(() => {
     setColumns((prevColumns) => {
@@ -357,11 +365,22 @@ export function DataTable<T extends object>({
           !resizing &&
           !isFirstColumn &&
           header.column.id !== "expander" &&
-          header.column.id !== "options"
+          header.column.id !== "options" &&
+          !header.column.columnDef.meta?.hideDragHandle
         }
-        onDragStart={(event) => !isFirstColumn && handleDragStart(event, header.column.id)}
-        onDragOver={(event) => !isFirstColumn && handleDragOver(event, header.column.id)}
-        onDragEnd={!isFirstColumn ? handleDragEnd : undefined}
+        onDragStart={(event) => {
+          if (!isFirstColumn && !header.column.columnDef.meta?.hideDragHandle) {
+            handleDragStart(event, header.column.id);
+          }
+        }}
+        onDragOver={(event) => {
+          if (!isFirstColumn && !header.column.columnDef.meta?.hideDragHandle) {
+            handleDragOver(event, header.column.id);
+          }
+        }}
+        onDragEnd={
+          !isFirstColumn && !header.column.columnDef.meta?.hideDragHandle ? handleDragEnd : undefined
+        }
         style={{
           width:
             header.column.columnDef.meta?.width || columnWidths[header.column.id] || header.column.columnDef.size || "auto",
@@ -382,7 +401,10 @@ export function DataTable<T extends object>({
         }}
       >
         <Stack direction="row" alignItems="center" spacing={1}>
-          {!isFirstColumn && header.column.id !== "expander" && header.column.id !== "options" && (
+          {!isFirstColumn &&
+            header.column.id !== "expander" &&
+            header.column.id !== "options" &&
+            !header.column.columnDef.meta?.hideDragHandle && (
             <IconGripVertical size={12} style={{ cursor: "move" }} />
           )}
           <Box

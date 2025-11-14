@@ -1,5 +1,6 @@
 "use client";
 
+import Head from "next/head";
 import { ReactNode } from "react";
 
 export type PageContainerProps = {
@@ -8,10 +9,16 @@ export type PageContainerProps = {
   children: ReactNode;
 };
 
-const PageContainer = ({ title, children }: PageContainerProps) => (
-  <div>
-    {children}
-  </div>
+const PageContainer = ({ title, description, children }: PageContainerProps) => (
+  <>
+    {title && (
+      <Head>
+        <title>{title}</title>
+        {description && <meta name="description" content={description} />}
+      </Head>
+    )}
+    <div>{children}</div>
+  </>
 );
 
 export default PageContainer;

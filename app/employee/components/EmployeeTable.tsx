@@ -1,10 +1,9 @@
 import { useMemo } from "react";
 import { Alert, Box, CircularProgress, Stack, Typography } from "@mui/material";
 import { ColumnDef } from "@tanstack/react-table";
+import { alpha } from "@mui/material/styles";
 import SoftIconButton from "@/components/ui/buttons/soft-icon-button";
-import EditRounded from "@mui/icons-material/EditRounded";
-import DeleteIcon from "@mui/icons-material/Delete";
-import DataTable from "@/components/ui/data-table/data-table";
+import FixedColumnsDataTable from "@/components/ui/data-table/fixed-columns-table";
 
 import type { Employee } from "../types";
 
@@ -33,33 +32,69 @@ export const EmployeeTable = ({
     () => [
       {
         id: "actions",
-        header: () => "Actions",
-        meta: { headerAlign: "center", hideSort: true },
+        header: () => "",
+        meta: { headerAlign: "center", hideSort: true, hideDragHandle: true },
         cell: ({ row }) => {
           const employee = row.original;
           const isInactive = !employee.active;
           return (
             <Stack direction="row" spacing={1} justifyContent="center">
               <SoftIconButton 
-                color="primary" 
+                color="primary"
                 onClick={() => onEdit(employee.id)} 
                 aria-label="Edit"
-                sx={{
+                rounded={3}
+                sx={(theme) => ({
                   opacity: isInactive ? 0.6 : 1,
-                }}
+                  width: 40,
+                  height: 40,
+                  borderRadius: 10,
+                  backgroundColor: alpha(theme.palette.primary.light, 0.28),
+                  color: theme.palette.primary.main,
+                  "&:hover": {
+                    backgroundColor: alpha(theme.palette.primary.light, 0.42),
+                  },
+                })}
               >
-                <EditRounded />
+                <Box
+                  component="img"
+                  src="/icons/edit-action.svg"
+                  alt="Edit employee"
+                  sx={{ width: 18, height: 18 }}
+                />
               </SoftIconButton>
               <SoftIconButton
-                color="default"
+                color="primary"
                 onClick={() => onDeleteRequest(employee.id)}
                 aria-label="Delete"
                 disabled={deletingId === employee.id}
-                sx={{
+                rounded={3}
+                sx={(theme) => ({
                   opacity: isInactive ? 0.6 : 1,
-                }}
+                  width: 40,
+                  height: 40,
+                  borderRadius: 10,
+                  backgroundColor: alpha(theme.palette.primary.light, 0.28),
+                  color: theme.palette.primary.main,
+                  "&:hover": {
+                    backgroundColor: alpha(theme.palette.primary.light, 0.42),
+                  },
+                  "&.Mui-disabled": {
+                    backgroundColor: alpha(theme.palette.primary.light, 0.2),
+                    color: alpha(theme.palette.primary.main, 0.45),
+                  },
+                })}
               >
-                {deletingId === employee.id ? <CircularProgress size={18} /> : <DeleteIcon />}
+                {deletingId === employee.id ? (
+                  <CircularProgress size={18} />
+                ) : (
+                  <Box
+                    component="img"
+                    src="/icons/delete-action.svg"
+                    alt="Delete employee"
+                    sx={{ width: 18, height: 18 }}
+                  />
+                )}
               </SoftIconButton>
             </Stack>
           );
@@ -181,11 +216,13 @@ export const EmployeeTable = ({
         </Alert>
       )}
 
-      <DataTable<Employee>
+      <FixedColumnsDataTable<Employee>
         data={employees}
         columns={columns}
         getStableRowId={(row) => row.id}
         getRowClassName={(row) => (!row.active ? "inactive-row" : "")}
+        fixedColumnsCount={0}
+        firstColumnWidth={80}
         isServerPagination={false}
       />
 

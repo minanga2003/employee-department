@@ -8,7 +8,7 @@ import Breadcrumb from "@/components/ui/breadcrumb/breadcrumb";
 import React from "react";
 
 export default function EmployeePage() {
-  const pageTitle = "Employee";
+  const pageTitle = "Employee Registration";
   return (
     <PageContainer title={pageTitle}>
       {pageTitle && <Breadcrumb title={pageTitle} items={[]} />}

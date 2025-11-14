@@ -1,8 +1,8 @@
 "use client";
 
-import { Grid, Typography, Breadcrumbs, IconButton } from "@mui/material";
+import { Grid, Typography, Breadcrumbs, IconButton, Divider } from "@mui/material";
 import NextLink from "next/link";
-import ArrowBack from "@mui/icons-material/ArrowBack";
+import { IconArrowLeft, IconCircle } from "@tabler/icons-react";
 import { ReactNode } from "react";
 
 export type BreadcrumbItem = {
@@ -37,7 +37,7 @@ const Breadcrumb = ({ subtitle, items, title, onBackClick }: BreadcrumbProps) =>
       {onBackClick && (
         <Grid item>
           <IconButton onClick={onBackClick} color="primary" sx={{ width: 34, height: 34 }}>
-            <ArrowBack fontSize="small" />
+            <IconArrowLeft size={20} />
           </IconButton>
         </Grid>
       )}
@@ -51,12 +51,12 @@ const Breadcrumb = ({ subtitle, items, title, onBackClick }: BreadcrumbProps) =>
         }}
       >
         <Typography
-          variant="h5"
+          variant="h6"
           sx={{
             textTransform: "uppercase",
-            fontSize: { xs: "1.25rem", md: "1.2rem" },
-            fontWeight: 700,
-            letterSpacing: 0.6,
+            fontSize: { xs: "1.15rem", md: "1.35rem" },
+            fontWeight: 400,
+            letterSpacing: 0.25,
           }}
         >
           {title}
@@ -64,33 +64,31 @@ const Breadcrumb = ({ subtitle, items, title, onBackClick }: BreadcrumbProps) =>
         {subtitle && (
           <Typography
             color="textSecondary"
-            variant="body2"
+            variant="subtitle1"
             fontWeight={400}
             mt={0}
             mb={0}
-            sx={{ fontSize: "0.75rem" }}
+            sx={{ fontSize: { xs: "1rem", md: "1.15rem" }, letterSpacing: 0.1 }}
           >
             {subtitle}
           </Typography>
         )}
         {items && (
-          <Breadcrumbs separator={null} sx={{ alignItems: "center" }} aria-label="breadcrumb">
+          <Breadcrumbs
+            separator={<IconCircle size={5} style={{ margin: "0 0px" }} />}
+            sx={{ alignItems: "center" }}
+            aria-label="breadcrumb"
+          >
             {items.map((item) => (
               <div key={item.title}>
                 {item.to ? (
                   <NextLink href={item.to} passHref>
-                    <Typography
-                      color="textSecondary"
-                      sx={{ textTransform: "uppercase", fontSize: "0.75rem", letterSpacing: 0.3 }}
-                    >
+                    <Typography color="textSecondary" sx={{ textTransform: "uppercase" }}>
                       {item.title}
                     </Typography>
                   </NextLink>
                 ) : (
-                  <Typography
-                    color="textPrimary"
-                    sx={{ textTransform: "uppercase", fontSize: "0.75rem", letterSpacing: 0.3 }}
-                  >
+                  <Typography color="textPrimary" sx={{ textTransform: "uppercase" }}>
                     {item.title}
                   </Typography>
                 )}
@@ -100,6 +98,7 @@ const Breadcrumb = ({ subtitle, items, title, onBackClick }: BreadcrumbProps) =>
         )}
       </Grid>
     </Grid>
+    <Divider sx={{ mb: 1, ml: 1 }} />
   </>
 );
 
