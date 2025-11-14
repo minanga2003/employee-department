@@ -1,27 +1,22 @@
 "use client";
-
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Box,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
   FormControlLabel,
   LinearProgress,
   Stack,
   Typography,
+  useTheme,
 } from "@mui/material";
-
+import Grid2 from "@mui/material/Grid2";
 import CustomAutocomplete from "@/components/forms/drop-down/custom-auto-complete";
 import CustomCheckbox from "@/components/forms/checkbox/custom-checkbox";
 import BlankCard from "@/components/ui/card/blank-card";
 import CustomButtonWithIcon from "@/components/ui/buttons/custom-button-with-icon";
+import AddIcon from "@mui/icons-material/Add";
 import TableWithSearch from "@/components/ui/data-table/search-data-table";
-import Breadcrumb from "@/components/ui/breadcrumb/breadcrumb";
+import ConfirmationDialog from "@/components/ui/dialog-box/confirmation-dialog";
 import PageContainer from "@/components/layouts/container/page-container";
 
 import { buildApiUrl } from "../../lib/apiConfig";
@@ -60,11 +55,12 @@ const formatCurrency = (amount: number) =>
 type Option = { 
   label: string; 
   value: string; 
-  status?: number; // 1 = active, 0 = inactive
+  status?: number; 
   disabled?: boolean;
 };
 
 export const EmployeeDashboard = () => {
+  const theme = useTheme();
   const [activeOnly, setActiveOnly] = useState(true);
   const [department, setDepartment] = useState<string>("all");
   const [section, setSection] = useState<string>("all");
@@ -390,130 +386,129 @@ export const EmployeeDashboard = () => {
 
   return (
     <PageContainer title="Employee">
-      <Breadcrumb title="Employee" />
-
-      <Stack spacing={3}>
-        <BlankCard sx={{ p: 3 }}>
-          <Stack spacing={2}>
-            <Stack direction={{ xs: "column", md: "row" }} justifyContent="flex-end" alignItems={{ md: "center" }}>
-              <CustomButtonWithIcon
-                variant="contained"
-                onClick={() => setIsCreateDialogOpen(true)}
-              >
-                New Employee
-              </CustomButtonWithIcon>
-            </Stack>
-
+      <Box sx={{ width: "99%", overflowX: "hidden" }}>
+      <Grid2 container spacing={1}>
+        {/* First Row - Filters */}
+        <Grid2 size={{ lg: 12 }} sx={{ mt: 1, ml: 1 }}>
+          <Box sx={{ width: "100%" }}>
             <Stack
               direction={{ xs: "column", md: "row" }}
-              spacing={2}
-              alignItems={{ md: "center" }}
-              justifyContent="space-between"
+              spacing={1.5}
+              alignItems="center"
+              justifyContent={{ xs: "flex-start", md: "flex-end" }}
+              sx={{
+                width: "100%",
+                flexWrap: "wrap",
+                rowGap: 1,
+              }}
             >
-              <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-                <FormControlLabel
-                  control={
-                    <CustomCheckbox
-                      checked={activeOnly}
-                      onChange={(event: ChangeEvent<HTMLInputElement>) =>
-                        setActiveOnly(event.target.checked)
-                      }
-                    />
-                  }
-                  label="Active Only"
-                  sx={{
-                    "& .MuiTypography-root": { fontSize: "0.8rem" },
-                  }}
-                />
-
-                <Box sx={{ minWidth: 220 }}>
-                  <CustomAutocomplete
-                    label="Department"
-                    options={departmentOptions}
-                    value={selectedDepartmentOption}
-                    onChange={(_, option) => {
-                      const next = option?.value ?? "all";
-                      setDepartment(String(next));
-                      setSection("all");
-                    }}
+              <FormControlLabel
+                control={
+                  <CustomCheckbox
+                    checked={activeOnly}
+                    onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                      setActiveOnly(event.target.checked)
+                    }
                   />
-                </Box>
-
-                <Box sx={{ minWidth: 220 }}>
-                  <CustomAutocomplete
-                    label="Section"
-                    options={sectionOptions}
-                    value={department === "all" ? sectionOptions[0] : selectedSectionOption}
-                    onChange={(_, option) => setSection(String(option?.value ?? "all"))}
-                    disabled={department === "all"}
-                  />
-                </Box>
-              </Stack>
-
-              <Box sx={{ width: { xs: "100%", md: 280 } }}>
-                <TableWithSearch searchText={search} setSearchText={setSearch} />
-              </Box>
+                }
+                label="Active Only"
+                sx={{
+                  "& .MuiTypography-root": { fontSize: "0.8rem" },
+                }}
+              />
+              <CustomAutocomplete
+                id="department"
+                label="Department"
+                options={departmentOptions}
+                value={selectedDepartmentOption}
+                onChange={(_, option) => {
+                  const next = option?.value ?? "all";
+                  setDepartment(String(next));
+                  setSection("all");
+                }}
+                fullWidth
+                sx={{ width: { xs: "100%", sm: 243 } }}
+              />
+              <CustomAutocomplete
+                id="section"
+                label="Section"
+                options={sectionOptions}
+                value={department === "all" ? sectionOptions[0] : selectedSectionOption}
+                onChange={(_, option) => setSection(String(option?.value ?? "all"))}
+                disabled={department === "all"}
+                fullWidth
+                sx={{ width: { xs: "100%", sm: 243 } }}
+              />
+              <TableWithSearch
+                searchText={search}
+                setSearchText={setSearch}
+                width={243}
+                marginBottom={0}
+              />
             </Stack>
-          </Stack>
-        </BlankCard>
+          </Box>
+        </Grid2>
 
-        {notification && (
-          <Alert severity="success" variant="outlined">
-            {notification}
-          </Alert>
-        )}
-
-        <BlankCard sx={{ p: 3 }}>
-          <Stack spacing={2}>
-            {loadingEmployees && <LinearProgress />}
-
-            <EmployeeTable
-              employees={employees}
-              loading={loadingEmployees}
-              error={error}
-              onEdit={handleEdit}
-              onDeleteRequest={handleRequestDelete}
-              deletingId={deletingId}
-              pageTotalSalary={pageTotalSalary}
-              formatCurrency={formatCurrency}
-            />
-          </Stack>
-        </BlankCard>
-      </Stack>
-
-      <Dialog
-        open={isDeleteDialogOpen}
-        onClose={(_, reason) => {
-          if (reason === "backdropClick" || reason === "escapeKeyDown") {
-            if (isDeletingSelectedEmployee) {
-              return;
-            }
-          }
-          handleCancelDelete();
-        }}
-      >
-        <DialogTitle>Delete Employee</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Are you sure you want to delete
-            {pendingDeleteEmployee ? ` ${pendingDeleteEmployee.name}` : " this employee"}?
-            This action cannot be undone.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCancelDelete} disabled={isDeletingSelectedEmployee}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleConfirmDelete}
-            color="error"
-            variant="contained"
-            disabled={isDeletingSelectedEmployee}
+        {/* Second Row - New Employee Button */}
+        <Grid2 size={{ lg: 12 }} sx={{ ml: 1 }}>
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{
+              width: "100%",
+              justifyContent: "flex-end",
+              alignItems: "center",
+            }}
           >
-            {isDeletingSelectedEmployee ? "Deleting..." : "Delete"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+            <CustomButtonWithIcon
+              variant="outlined"
+              startIcon={<AddIcon fontSize="small" />}
+              onClick={() => setIsCreateDialogOpen(true)}
+            >
+              New Employee
+            </CustomButtonWithIcon>
+          </Stack>
+        </Grid2>
+
+        {/* Data Table */}
+        <Grid2 size={{ lg: 12 }} sx={{ mt: 1, ml: 1 }}>
+          <BlankCard>
+            <Box sx={{ display: "inline-block", overflowX: "auto", width: "100%" }}>
+              {loadingEmployees && <LinearProgress />}
+              <EmployeeTable
+                employees={employees}
+                loading={loadingEmployees}
+                error={error}
+                onEdit={handleEdit}
+                onDeleteRequest={handleRequestDelete}
+                deletingId={deletingId}
+                pageTotalSalary={pageTotalSalary}
+                formatCurrency={formatCurrency}
+              />
+            </Box>
+          </BlankCard>
+        </Grid2>
+      </Grid2>
+      </Box>
+
+      {notification && (
+        <Alert severity="success" variant="outlined" sx={{ mt: 2, ml: 1 }}>
+          {notification}
+        </Alert>
+      )}
+
+      <ConfirmationDialog
+        open={isDeleteDialogOpen}
+        onClose={handleCancelDelete}
+        onConfirm={handleConfirmDelete}
+        alertType="deleteConfirmation"
+        isLoading={isDeletingSelectedEmployee}
+        description={
+          pendingDeleteEmployee
+            ? `${pendingDeleteEmployee.name}? This action cannot be undone.`
+            : "this employee? This action cannot be undone."
+        }
+      />
 
       <NewEmployeeDialog
         open={isCreateDialogOpen}

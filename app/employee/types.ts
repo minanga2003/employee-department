@@ -1,13 +1,13 @@
 export type Department = {
   id: number;
   name: string;
-  status?: number; // 1 = active, 0 = inactive
+  status?: number; 
 };
 
 export type Section = {
   id: number;
   name: string;
-  status?: number; // 1 = active, 0 = inactive
+  status?: number; 
 };
 
 export type Employee = {

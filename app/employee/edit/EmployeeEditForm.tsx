@@ -1,25 +1,17 @@
 "use client";
-
 import { ChangeEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import dayjs from "dayjs";
 import {
   Alert,
   Box,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
   Divider,
   FormControlLabel,
   Stack,
   Typography,
   useTheme,
 } from "@mui/material";
-import Grid from "@mui/material/Grid";
-
+import Grid2 from "@mui/material/Grid2";
 import CustomAutocomplete from "@/components/forms/drop-down/custom-auto-complete";
 import CustomCheckbox from "@/components/forms/checkbox/custom-checkbox";
 import CustomDatePicker from "@/components/forms/date-picker/date-picker";
@@ -29,6 +21,8 @@ import ButtonLoader from "@/components/ui/buttons/button-loader";
 import CustomButtonWithIcon from "@/components/ui/buttons/custom-button-with-icon";
 import SummaryCard from "@/components/ui/card/summary-card";
 import Breadcrumb from "@/components/ui/breadcrumb/breadcrumb";
+import CustomDivider from "@/components/ui/divider/custom-divider";
+import ConfirmationDialog from "@/components/ui/dialog-box/confirmation-dialog";
 import PageContainer from "@/components/layouts/container/page-container";
 
 import { buildApiUrl } from "../../../lib/apiConfig";
@@ -199,6 +193,7 @@ const SectionHeader = ({ label }: { label: string }) => {
 
 export const EmployeeEditForm = () => {
   const searchParams = useSearchParams();
+  const theme = useTheme();
   const employeeIdParam = searchParams.get("id");
   const employeeId = useMemo(() => {
     if (!employeeIdParam) return null;
@@ -232,10 +227,37 @@ export const EmployeeEditForm = () => {
     [formState.totalSalary]
   );
 
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+
+  const requiredFieldsFilled = useMemo(() => {
+    const hasEmpNo = formState.empNo.trim().length > 0;
+    const hasName = formState.name.trim().length > 0;
+    const hasDob = !!formState.dob;
+    const hasDepartment = !!formState.departmentId;
+    const hasSection = !!formState.sectionId;
+    const hasBasicSalary = formState.basicSalary.trim().length > 0;
+    return hasEmpNo && hasName && hasDob && hasDepartment && hasSection && hasBasicSalary;
+  }, [
+    formState.basicSalary,
+    formState.departmentId,
+    formState.dob,
+    formState.empNo,
+    formState.name,
+    formState.sectionId,
+  ]);
+
+  const showEmpNoRequiredError = hasAttemptedSubmit && !formState.empNo.trim();
+  const showNameRequiredError = hasAttemptedSubmit && !formState.name.trim();
+  const showDobRequiredError = hasAttemptedSubmit && !formState.dob;
+  const showDepartmentRequiredError = hasAttemptedSubmit && !formState.departmentId;
+  const showSectionRequiredError = hasAttemptedSubmit && !formState.sectionId;
+  const showBasicSalaryRequiredError = hasAttemptedSubmit && !formState.basicSalary.trim();
+
   useEffect(() => {
     setErrorMessage(null);
     setSuccessMessage(null);
     setSubmissionState("idle");
+    setHasAttemptedSubmit(false);
     setLoadedFormState(null);
 
     if (!employeeId) {
@@ -603,6 +625,7 @@ export const EmployeeEditForm = () => {
   };
 
   const performSubmit = async () => {
+    setHasAttemptedSubmit(true);
     setSubmissionState("submitting");
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -841,6 +864,7 @@ export const EmployeeEditForm = () => {
                   type="submit"
                   variant="contained"
                   loading={submissionState === "submitting"}
+                  disabled={submissionState === "submitting"}
                 >
                   {employeeId ? "Update" : "Save"}
                 </ButtonLoader>
@@ -856,32 +880,40 @@ export const EmployeeEditForm = () => {
                 </CustomButtonWithIcon>
               </Stack>
 
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
+              {hasAttemptedSubmit && !requiredFieldsFilled && (
+                <Alert severity="info" variant="outlined">
+                  Please fill out all required fields before saving.
+                </Alert>
+              )}
+
+              <CustomDivider />
+
+              <Grid2 container spacing={2}>
+                <Grid2 size={{ xs: 12, sm: 6 }}>
                   <CustomTextField
                     name="empNo"
                     label="EMP No"
                     value={formState.empNo}
                     onChange={handleInputChange}
-                    error={Boolean(empNoError)}
-                    helperText={empNoError ?? ""}
+                    error={Boolean(empNoError) || showEmpNoRequiredError}
+                    helperText={empNoError ?? (showEmpNoRequiredError ? "Employee number is required." : "")}
                     required
                     disabled={loadingEmployee}
                   />
-                </Grid>
-                <Grid item xs={12} sm={6}>
+                </Grid2>
+                <Grid2 size={{ xs: 12, sm: 6 }}>
                   <CustomTextField
                     name="name"
                     label="Name"
                     value={formState.name}
                     onChange={handleInputChange}
-                    error={Boolean(nameError)}
-                    helperText={nameError ?? ""}
+                    error={Boolean(nameError) || showNameRequiredError}
+                    helperText={nameError ?? (showNameRequiredError ? "Name is required." : "")}
                     required
                     disabled={loadingEmployee}
                   />
-                </Grid>
-                <Grid item xs={12} sm={6}>
+                </Grid2>
+                <Grid2 size={{ xs: 12, sm: 6 }}>
                   <CustomDatePicker
                     label="Date of Birth"
                     value={formState.dob}
@@ -900,22 +932,22 @@ export const EmployeeEditForm = () => {
                     disabled={loadingEmployee}
                   slotProps={{
                     textField: {
-                      helperText: dobError ?? "",
-                      error: Boolean(dobError),
+                      helperText: dobError ?? (showDobRequiredError ? "Date of birth is required." : ""),
+                      error: Boolean(dobError) || showDobRequiredError,
                       required: true,
                     },
                   }}
                   />
-                </Grid>
-                <Grid item xs={12} sm={6}>
+                </Grid2>
+                <Grid2 size={{ xs: 12, sm: 6 }}>
                   <CustomTextField
                     label="Age"
                     value={formState.age ? `${formState.age} years` : ""}
                     InputProps={{ readOnly: true }}
                     placeholder="Auto-calculated"
                   />
-                </Grid>
-                <Grid item xs={12} sm={6}>
+                </Grid2>
+                <Grid2 size={{ xs: 12, sm: 6 }}>
                   <CustomAutocomplete
                     label="Department"
                     options={departmentOptions}
@@ -937,14 +969,16 @@ export const EmployeeEditForm = () => {
                       setErrorMessage(null);
                     }}
                     disabled={loadingDepartments}
-                    error={Boolean(departmentError)}
+                    error={Boolean(departmentError) || showDepartmentRequiredError}
                     helperText={
-                      loadingDepartments ? "Loading departments…" : departmentError ?? ""
+                      loadingDepartments
+                        ? "Loading departments…"
+                        : departmentError ?? (showDepartmentRequiredError ? "Department is required." : "")
                     }
                     required
                   />
-                </Grid>
-                <Grid item xs={12} sm={6}>
+                </Grid2>
+                <Grid2 size={{ xs: 12, sm: 6 }}>
                   <CustomAutocomplete
                     label="Section"
                     options={sectionOptions}
@@ -964,17 +998,17 @@ export const EmployeeEditForm = () => {
                       setErrorMessage(null);
                     }}
                     disabled={!formState.departmentId || loadingSections}
-                    error={Boolean(sectionError)}
+                    error={Boolean(sectionError) || showSectionRequiredError}
                     helperText={
                       !formState.departmentId
                         ? "Select department first"
                         : loadingSections
                         ? "Loading sections…"
-                        : sectionError ?? ""
+                        : sectionError ?? (showSectionRequiredError ? "Section is required." : "")
                     }
                   />
-                </Grid>
-                <Grid item xs={12} sm={6}>
+                </Grid2>
+                <Grid2 size={{ xs: 12, sm: 6 }}>
                   <CustomTextField
                     name="email"
                     label="Email"
@@ -983,20 +1017,22 @@ export const EmployeeEditForm = () => {
                     onChange={handleInputChange}
                     disabled={loadingEmployee}
                   />
-                </Grid>
-                <Grid item xs={12} sm={6}>
+                </Grid2>
+                <Grid2 size={{ xs: 12, sm: 6 }}>
                   <CustomTextField
                     name="basicSalary"
                     label="Basic Salary"
                     value={formState.basicSalary}
                     onChange={handleInputChange}
-                    error={Boolean(basicSalaryError)}
-                    helperText={basicSalaryError ?? ""}
+                    error={Boolean(basicSalaryError) || showBasicSalaryRequiredError}
+                    helperText={
+                      basicSalaryError ?? (showBasicSalaryRequiredError ? "Basic salary is required." : "")
+                    }
                     required
                     disabled={loadingEmployee}
                   />
-                </Grid>
-                <Grid item xs={12} sm={6}>
+                </Grid2>
+                <Grid2 size={{ xs: 12, sm: 6 }}>
                   <CustomTextField
                     name="travelAllowance"
                     label="Travel Allowance"
@@ -1004,8 +1040,8 @@ export const EmployeeEditForm = () => {
                     onChange={handleInputChange}
                     disabled={loadingEmployee}
                   />
-                </Grid>
-                <Grid item xs={12} sm={6}>
+                </Grid2>
+                <Grid2 size={{ xs: 12, sm: 6 }}>
                   <CustomTextField
                     name="otherAllowance"
                     label="Other Allowance"
@@ -1013,8 +1049,8 @@ export const EmployeeEditForm = () => {
                     onChange={handleInputChange}
                     disabled={loadingEmployee}
                   />
-                </Grid>
-              </Grid>
+                </Grid2>
+              </Grid2>
 
               {employeeId && (
                 <Stack spacing={2} sx={{ width: "100%" }}>
@@ -1042,83 +1078,33 @@ export const EmployeeEditForm = () => {
         <SummaryCard data={salarySummary} title="Salary Summary" />
       </Stack>
 
-      <Dialog
+      <ConfirmationDialog
         open={isResetDialogOpen}
-        onClose={(_, reason) => {
-          if (reason === "backdropClick" || reason === "escapeKeyDown") {
-            return;
-          }
-          handleCancelReset();
-        }}
-      >
-        <DialogTitle>Clear Form</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Are you sure you want to clear all form fields? Any unsaved changes will be lost.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCancelReset}>Cancel</Button>
-          <Button color="error" variant="contained" onClick={handleConfirmReset}>
-            Clear
-          </Button>
-        </DialogActions>
-      </Dialog>
+        onClose={handleCancelReset}
+        onConfirm={handleConfirmReset}
+        alertType="clearConfirmation"
+        isLoading={false}
+        description="Any unsaved changes will be lost."
+      />
 
-      <Dialog
+      <ConfirmationDialog
         open={isBackDialogOpen}
-        onClose={(_, reason) => {
-          if (reason === "backdropClick" || reason === "escapeKeyDown") {
-            return;
-          }
-          handleCancelBack();
-        }}
-      >
-        <DialogTitle>Leave Page</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Are you sure you want to go back? Any unsaved changes will be lost.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCancelBack}>Stay</Button>
-          <Button color="error" variant="contained" onClick={handleConfirmBack}>
-            Go Back
-          </Button>
-        </DialogActions>
-      </Dialog>
+        onClose={handleCancelBack}
+        onConfirm={handleConfirmBack}
+        alertType="clearUnsavedData"
+        isLoading={false}
+        description="Any unsaved changes will be lost."
+      />
 
-      <Dialog
+      <ConfirmationDialog
         open={isSalaryConfirmDialogOpen}
-        onClose={(_, reason) => {
-          if (reason === "backdropClick" || reason === "escapeKeyDown") {
-            if (submissionState === "submitting") {
-              return;
-            }
-          }
-          handleCancelSalaryConfirm();
-        }}
-      >
-        <DialogTitle>Confirm Salary</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Basic salary is less than or equal to the total allowances. Are you sure about that?
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCancelSalaryConfirm} disabled={submissionState === "submitting"}>
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleConfirmSalaryConfirm} 
-            color="primary" 
-            variant="contained" 
-            disabled={submissionState === "submitting"}
-          >
-            Yes, Continue
-          </Button>
-        </DialogActions>
-      </Dialog>
+        onClose={handleCancelSalaryConfirm}
+        onConfirm={handleConfirmSalaryConfirm}
+        alertType="custom"
+        isLoading={submissionState === "submitting"}
+        title="Confirm Salary"
+        description="Basic salary is less than or equal to the total allowances. Are you sure about that?"
+      />
     </PageContainer>
   );
 };

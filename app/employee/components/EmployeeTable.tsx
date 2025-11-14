@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { Alert, Box, CircularProgress, Stack, Typography } from "@mui/material";
 import { ColumnDef } from "@tanstack/react-table";
-
 import SoftIconButton from "@/components/ui/buttons/soft-icon-button";
 import EditRounded from "@mui/icons-material/EditRounded";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -72,10 +71,9 @@ export const EmployeeTable = ({
         meta: { headerAlign: "right" },
         cell: ({ getValue, row }) => (
           <Typography 
-            variant="body2" 
-            textAlign="right" 
+            variant="subtitle1" 
+            className="subtitle-text-right"
             sx={{ 
-              fontSize: "0.8rem",
               color: !row.original.active ? "text.disabled" : "text.primary",
             }}
           >
@@ -86,12 +84,12 @@ export const EmployeeTable = ({
       {
         accessorKey: "name",
         header: () => "Name",
+        meta: { headerAlign: "center" },
         cell: ({ getValue, row }) => (
           <Typography 
-            variant="body2" 
-            fontWeight={500} 
+            variant="subtitle1" 
+            className="subtitle-text-center"
             sx={{ 
-              fontSize: "0.85rem",
               color: !row.original.active ? "text.disabled" : "text.primary",
             }}
           >
@@ -102,11 +100,12 @@ export const EmployeeTable = ({
       {
         accessorKey: "departmentName",
         header: () => "Department",
+        meta: { headerAlign: "center" },
         cell: ({ getValue, row }) => (
           <Typography 
-            variant="body2" 
+            variant="subtitle1" 
+            className="subtitle-text-center"
             sx={{ 
-              fontSize: "0.8rem",
               color: !row.original.active ? "text.disabled" : "text.primary",
             }}
           >
@@ -120,11 +119,9 @@ export const EmployeeTable = ({
         meta: { headerAlign: "right" },
         cell: ({ row }) => (
           <Typography 
-            variant="body2" 
-            textAlign="right" 
-            fontWeight={500} 
+            variant="subtitle1" 
+            className="subtitle-text-right table-amount"
             sx={{ 
-              fontSize: "0.85rem",
               color: !row.original.active ? "text.disabled" : "text.primary",
             }}
           >
@@ -135,11 +132,12 @@ export const EmployeeTable = ({
       {
         accessorKey: "email",
         header: () => "Email",
+        meta: { headerAlign: "center" },
         cell: ({ getValue, row }) => (
           <Typography 
-            variant="body2" 
+            variant="subtitle1" 
+            className="subtitle-text-center"
             sx={{ 
-              fontSize: "0.8rem",
               color: !row.original.active ? "text.disabled" : "text.primary",
             }}
           >
@@ -150,11 +148,12 @@ export const EmployeeTable = ({
       {
         accessorKey: "sectionName",
         header: () => "Section",
+        meta: { headerAlign: "center" },
         cell: ({ getValue, row }) => (
           <Typography 
-            variant="body2" 
+            variant="subtitle1" 
+            className="subtitle-text-center"
             sx={{ 
-              fontSize: "0.8rem",
               color: !row.original.active ? "text.disabled" : "text.primary",
             }}
           >

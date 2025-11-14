@@ -1,11 +1,18 @@
-import type { Metadata } from "next";
+"use client";
+import Loading from "@/app/loading";
+import GlobalError from "@/components/feature/error-message/error-message";
 import EmployeeEditForm from "./EmployeeEditForm";
-
-export const metadata: Metadata = {
-  title: "Employee Create / Edit",
-};
+import PageContainer from "@/components/layouts/container/page-container";
+import Breadcrumb from "@/components/ui/breadcrumb/breadcrumb";
+import React from "react";
 
 export default function EmployeeEditPage() {
-  return <EmployeeEditForm />;
+  const pageTitle = "Employee Create / Edit";
+  return (
+    <PageContainer title={pageTitle}>
+      {pageTitle && <Breadcrumb title={pageTitle} items={[]} />}
+      <EmployeeEditForm />
+    </PageContainer>
+  );
 }
 

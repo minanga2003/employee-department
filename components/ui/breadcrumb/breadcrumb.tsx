@@ -51,12 +51,12 @@ const Breadcrumb = ({ subtitle, items, title, onBackClick }: BreadcrumbProps) =>
         }}
       >
         <Typography
-          variant="subtitle1"
+          variant="h5"
           sx={{
             textTransform: "uppercase",
-            fontSize: "0.85rem",
-            fontWeight: 600,
-            letterSpacing: 0.4,
+            fontSize: { xs: "1.25rem", md: "1.2rem" },
+            fontWeight: 700,
+            letterSpacing: 0.6,
           }}
         >
           {title}

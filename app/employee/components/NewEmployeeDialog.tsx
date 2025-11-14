@@ -8,7 +8,6 @@ import {
   Dialog,
   DialogActions,
   DialogContent,
-  DialogContentText,
   DialogTitle,
   Divider,
   CircularProgress,
@@ -19,7 +18,7 @@ import {
   useTheme,
   FormControlLabel,
 } from "@mui/material";
-import Grid from "@mui/material/Grid";
+import Grid2 from "@mui/material/Grid2";
 import CloseIcon from "@mui/icons-material/Close";
 import KeyboardBackspaceRoundedIcon from "@mui/icons-material/KeyboardBackspaceRounded";
 import CleaningServicesIcon from "@mui/icons-material/CleaningServices";
@@ -29,19 +28,20 @@ import CustomDatePicker from "@/components/forms/date-picker/date-picker";
 import CustomTextField from "@/components/forms/text-field/custom-text-field";
 import CustomButtonWithIcon from "@/components/ui/buttons/custom-button-with-icon";
 import CustomCheckbox from "@/components/forms/checkbox/custom-checkbox";
-
+import CustomDivider from "@/components/ui/divider/custom-divider";
+import ConfirmationDialog from "@/components/ui/dialog-box/confirmation-dialog";
 import { buildApiUrl } from "@/lib/apiConfig";
 
 type Department = {
   id: number;
   name: string;
-  status?: number; // 1 = active, 0 = inactive
+  status?: number; 
 };
 
 type Section = {
   id: number;
   name: string;
-  status?: number; // 1 = active, 0 = inactive
+  status?: number; 
 };
 
 type FormState = {
@@ -222,6 +222,32 @@ export const NewEmployeeDialog = ({
     () => formatCurrency(formState.totalSalary),
     [formState.totalSalary]
   );
+
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+
+  const requiredFieldsFilled = useMemo(() => {
+    const hasEmpNo = formState.empNo.trim().length > 0;
+    const hasName = formState.name.trim().length > 0;
+    const hasDob = !!formState.dob;
+    const hasDepartment = !!formState.departmentId;
+    const hasSection = !!formState.sectionId;
+    const hasBasicSalary = formState.basicSalary.trim().length > 0;
+    return hasEmpNo && hasName && hasDob && hasDepartment && hasSection && hasBasicSalary;
+  }, [
+    formState.basicSalary,
+    formState.departmentId,
+    formState.dob,
+    formState.empNo,
+    formState.name,
+    formState.sectionId,
+  ]);
+
+  const showEmpNoRequiredError = hasAttemptedSubmit && !formState.empNo.trim();
+  const showNameRequiredError = hasAttemptedSubmit && !formState.name.trim();
+  const showDobRequiredError = hasAttemptedSubmit && !formState.dob;
+  const showDepartmentRequiredError = hasAttemptedSubmit && !formState.departmentId;
+  const showSectionRequiredError = hasAttemptedSubmit && !formState.sectionId;
+  const showBasicSalaryRequiredError = hasAttemptedSubmit && !formState.basicSalary.trim();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -464,6 +490,7 @@ export const NewEmployeeDialog = ({
     setDepartmentError(null);
     setSectionError(null);
     setBasicSalaryError(null);
+    setHasAttemptedSubmit(false);
   }, [isEditMode, loadedFormState]);
 
   useEffect(() => {
@@ -480,6 +507,7 @@ export const NewEmployeeDialog = ({
       setDepartmentError(null);
       setSectionError(null);
       setBasicSalaryError(null);
+      setHasAttemptedSubmit(false);
     }
   }, [open, performReset]);
 
@@ -588,6 +616,7 @@ export const NewEmployeeDialog = ({
   };
 
   const performSubmit = async () => {
+    setHasAttemptedSubmit(true);
     setSubmissionState("submitting");
     setErrorMessage(null);
 
@@ -814,7 +843,7 @@ export const NewEmployeeDialog = ({
           aria-label="close"
           onClick={handleClose}
           edge="end"
-          sx={{ position: "absolute", right: 8, top: 8 }}
+          sx={{ position: "absolute", right: 25, top: 10 }}
         >
           <CloseIcon />
         </IconButton>
@@ -838,10 +867,251 @@ export const NewEmployeeDialog = ({
           }}
         >
           <Stack spacing={3}>
+            {errorMessage && (
+              <Alert severity="error" variant="outlined">
+                {errorMessage}
+              </Alert>
+            )}
+
+            {loadingEmployee && (
+              <Stack
+                direction="row"
+                spacing={1.5}
+                alignItems="center"
+                justifyContent="flex-start"
+                sx={{ fontSize: "0.85rem" }}
+              >
+                <CircularProgress size={18} />
+                <Typography variant="body2" sx={{ fontSize: "0.85rem" }}>
+                  Loading employee details…
+                </Typography>
+              </Stack>
+            )}
+
+            <Box
+              sx={{
+                maxHeight: { xs: "unset", md: "60vh" },
+                overflowY: "auto",
+                pr: { xs: 0, md: 1 },
+              }}
+            >
+              <Stack spacing={3}>
+                <Stack spacing={2} sx={{ width: "100%" }}>
+                  <SectionHeader label="Personal Details" />
+                  <Grid2 container spacing={2} sx={{ width: "100%", m: 0 }}>
+                    <Grid2 size={{ xs: 12, sm: 6 }}>
+                      <CustomTextField
+                        name="empNo"
+                        label="EMP No"
+                        value={formState.empNo}
+                        onChange={handleInputChange}
+                        required
+                        disabled={isBusy || isEditMode}
+                          error={Boolean(empNoError) || showEmpNoRequiredError}
+                          helperText={
+                            empNoError ?? (showEmpNoRequiredError ? "Employee number is required." : "")
+                          }
+                      />
+                    </Grid2>
+                    <Grid2 size={{ xs: 12, sm: 6 }}>
+                      <CustomTextField
+                        name="name"
+                        label="Name"
+                        value={formState.name}
+                        onChange={handleInputChange}
+                          error={Boolean(nameError) || showNameRequiredError}
+                          helperText={nameError ?? (showNameRequiredError ? "Name is required." : "")}
+                        required
+                        disabled={isBusy}
+                      />
+                    </Grid2>
+                    <Grid2 size={{ xs: 12, sm: 6 }}>
+                      <CustomDatePicker
+                        label="Date of Birth"
+                        value={formState.dob}
+                          onChange={(value) => {
+                            const nextDob = value ?? "";
+                            const nextAge = value ? calculateAge(value) : 0;
+                          setFormState((prev) => ({
+                            ...prev,
+                              dob: nextDob,
+                              age: nextAge,
+                            }));
+                            setDobError(getAgeValidationMessage(nextAge));
+                          }}
+                        disabled={isBusy}
+                          slotProps={{
+                            textField: {
+                              helperText:
+                                dobError ?? (showDobRequiredError ? "Date of birth is required." : ""),
+                              error: Boolean(dobError) || showDobRequiredError,
+                              required: true,
+                            },
+                          }}
+                      />
+                    </Grid2>
+                    <Grid2 size={{ xs: 12, sm: 6 }}>
+                      <CustomTextField
+                        label="Age"
+                        value={formState.age ? `${formState.age} years` : ""}
+                        InputProps={{ readOnly: true }}
+                        placeholder="Auto-calculated"
+                      />
+                    </Grid2>
+                    <Grid2 size={{ xs: 12 }}>
+                      <CustomTextField
+                        name="email"
+                        label="Email"
+                        type="email"
+                        value={formState.email}
+                        onChange={handleInputChange}
+                        disabled={isBusy}
+                      />
+                    </Grid2>
+                  </Grid2>
+                </Stack>
+
+                <Stack spacing={2} sx={{ width: "100%" }}>
+                  <Grid2 container spacing={2} sx={{ width: "100%", m: 0 }}>
+                    <Grid2 size={{ xs: 12, sm: 6 }}>
+                      <CustomAutocomplete
+                        label="Department"
+                        options={departmentOptions}
+                        value={selectedDepartmentOption}
+                        onChange={(_, option) => {
+                          // Prevent selecting inactive departments (should be disabled, but check for safety)
+                          if (option && option.status === 0) {
+                            setDepartmentError("Cannot select an inactive department.");
+                            setErrorMessage("Cannot select an inactive department.");
+                            return;
+                          }
+                          setFormState((prev) => ({
+                            ...prev,
+                            departmentId: option?.value ?? "",
+                            sectionId: "",
+                          }));
+                          setDepartmentError(option ? null : "Department is required.");
+                          setSectionError("Section is required.");
+                          setErrorMessage(null);
+                        }}
+                        disabled={loadingDepartments || isBusy}
+                          error={Boolean(departmentError) || showDepartmentRequiredError}
+                          helperText={
+                            loadingDepartments
+                              ? "Loading departments..."
+                              : departmentError ??
+                                (showDepartmentRequiredError ? "Department is required." : "")
+                          }
+                          required
+                      />
+                    </Grid2>
+                    <Grid2 size={{ xs: 12, sm: 6 }}>
+                      <CustomAutocomplete
+                        label="Section"
+                        options={sectionOptions}
+                        value={selectedSectionOption}
+                        onChange={(_, option) => {
+                          // Prevent selecting inactive sections (should be disabled, but check for safety)
+                          if (option && option.status === 0) {
+                            setSectionError("Cannot select an inactive section.");
+                            setErrorMessage("Cannot select an inactive section.");
+                            return;
+                          }
+                          setFormState((prev) => ({
+                            ...prev,
+                            sectionId: option?.value ?? "",
+                          }));
+                          setSectionError(option ? null : "Section is required.");
+                          setErrorMessage(null);
+                        }}
+                        disabled={!formState.departmentId || loadingSections || isBusy}
+                          error={Boolean(sectionError) || showSectionRequiredError}
+                        helperText={
+                          !formState.departmentId
+                            ? "Select department first"
+                            : loadingSections
+                            ? "Loading sections..."
+                              : sectionError ??
+                                (showSectionRequiredError ? "Section is required." : "")
+                        }
+                      />
+                    </Grid2>
+                  </Grid2>
+                </Stack>
+
+                <Stack spacing={2} sx={{ width: "100%" }}>
+                  <Grid2 container spacing={2} sx={{ width: "100%", m: 0 }}>
+                    <Grid2 size={{ xs: 12, sm: 6 }}>
+                      <CustomTextField
+                        name="basicSalary"
+                        label="Basic Salary"
+                        value={formState.basicSalary}
+                        onChange={handleInputChange}
+                        required
+                        disabled={isBusy}
+                          error={Boolean(basicSalaryError) || showBasicSalaryRequiredError}
+                          helperText={
+                            basicSalaryError ??
+                            (showBasicSalaryRequiredError ? "Basic salary is required." : "")
+                          }
+                      />
+                    </Grid2>
+                    <Grid2 size={{ xs: 12, sm: 6 }}>
+                      <CustomTextField
+                        name="travelAllowance"
+                        label="Travel Allowance"
+                        value={formState.travelAllowance}
+                        onChange={handleInputChange}
+                        disabled={isBusy}
+                      />
+                    </Grid2>
+                    <Grid2 size={{ xs: 12, sm: 6 }}>
+                      <CustomTextField
+                        name="otherAllowance"
+                        label="Other Allowance"
+                        value={formState.otherAllowance}
+                        onChange={handleInputChange}
+                        disabled={isBusy}
+                      />
+                    </Grid2>
+                    <Grid2 size={{ xs: 12, sm: 6 }}>
+                      <CustomTextField
+                        label="Total Salary"
+                        value={totalSalaryLabel}
+                        InputProps={{ readOnly: true }}
+                      />
+                    </Grid2>
+                  </Grid2>
+                </Stack>
+
+                {isEditMode && (
+                  <Stack spacing={2} sx={{ width: "100%" }}>
+                    <SectionHeader label="Status" />
+                    <FormControlLabel
+                      control={
+                        <CustomCheckbox
+                          name="active"
+                          checked={formState.active}
+                          onChange={handleInputChange}
+                          disabled={isBusy}
+                        />
+                      }
+                      label="Active"
+                      sx={{
+                        "& .MuiTypography-root": { fontSize: "0.85rem" },
+                      }}
+                    />
+                  </Stack>
+                )}
+              </Stack>
+            </Box>
+
+            <CustomDivider />
+
             <Stack
               direction={{ xs: "column", sm: "row" }}
               spacing={{ xs: 1, sm: 1.5 }}
-              justifyContent="flex-start"
+              justifyContent={{ xs: "flex-start", sm: "flex-end" }}
               alignItems={{ xs: "stretch", sm: "center" }}
               sx={{
                 width: "100%",
@@ -853,7 +1123,7 @@ export const NewEmployeeDialog = ({
                 type="button"
                 variant="outlined"
                 startIcon={<CleaningServicesIcon fontSize="small" />}
-                  onClick={handleRequestReset}
+                onClick={handleRequestReset}
                 disabled={isBusy}
                 sx={{ width: { xs: "100%", sm: "auto" } }}
               >
@@ -887,319 +1157,44 @@ export const NewEmployeeDialog = ({
               </CustomButtonWithIcon>
             </Stack>
 
-            {errorMessage && (
-              <Alert severity="error" variant="outlined">
-                {errorMessage}
+            {hasAttemptedSubmit && !requiredFieldsFilled && (
+              <Alert severity="info" variant="outlined">
+                Please fill out all required fields before saving.
               </Alert>
             )}
 
-            {loadingEmployee && (
-              <Stack
-                direction="row"
-                spacing={1.5}
-                alignItems="center"
-                justifyContent="flex-start"
-                sx={{ fontSize: "0.85rem" }}
-              >
-                <CircularProgress size={18} />
-                <Typography variant="body2" sx={{ fontSize: "0.85rem" }}>
-                  Loading employee details…
-                </Typography>
-              </Stack>
-            )}
-
-            <Box
-              sx={{
-                maxHeight: { xs: "unset", md: "60vh" },
-                overflowY: "auto",
-                pr: { xs: 0, md: 1 },
-              }}
-            >
-              <Stack spacing={3}>
-                <Stack spacing={2} sx={{ width: "100%" }}>
-                  <SectionHeader label="Personal Details" />
-                  <Grid container spacing={2} sx={{ width: "100%", m: 0 }}>
-                    <Grid item xs={12} sm={6}>
-                      <CustomTextField
-                        name="empNo"
-                        label="EMP No"
-                        value={formState.empNo}
-                        onChange={handleInputChange}
-                        required
-                        disabled={isBusy || isEditMode}
-                          error={Boolean(empNoError)}
-                          helperText={empNoError ?? ""}
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <CustomTextField
-                        name="name"
-                        label="Name"
-                        value={formState.name}
-                        onChange={handleInputChange}
-                          error={Boolean(nameError)}
-                          helperText={nameError ?? ""}
-                        required
-                        disabled={isBusy}
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <CustomDatePicker
-                        label="Date of Birth"
-                        value={formState.dob}
-                          onChange={(value) => {
-                            const nextDob = value ?? "";
-                            const nextAge = value ? calculateAge(value) : 0;
-                          setFormState((prev) => ({
-                            ...prev,
-                              dob: nextDob,
-                              age: nextAge,
-                            }));
-                            setDobError(getAgeValidationMessage(nextAge));
-                          }}
-                        disabled={isBusy}
-                          slotProps={{
-                            textField: {
-                              helperText: dobError ?? "",
-                              error: Boolean(dobError),
-                              required: true,
-                            },
-                          }}
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <CustomTextField
-                        label="Age"
-                        value={formState.age ? `${formState.age} years` : ""}
-                        InputProps={{ readOnly: true }}
-                        placeholder="Auto-calculated"
-                      />
-                    </Grid>
-                    <Grid item xs={12}>
-                      <CustomTextField
-                        name="email"
-                        label="Email"
-                        type="email"
-                        value={formState.email}
-                        onChange={handleInputChange}
-                        disabled={isBusy}
-                      />
-                    </Grid>
-                  </Grid>
-                </Stack>
-
-                <Stack spacing={2} sx={{ width: "100%" }}>
-                  <Grid container spacing={2} sx={{ width: "100%", m: 0 }}>
-                    <Grid item xs={12} sm={6}>
-                      <CustomAutocomplete
-                        label="Department"
-                        options={departmentOptions}
-                        value={selectedDepartmentOption}
-                        onChange={(_, option) => {
-                          // Prevent selecting inactive departments (should be disabled, but check for safety)
-                          if (option && option.status === 0) {
-                            setDepartmentError("Cannot select an inactive department.");
-                            setErrorMessage("Cannot select an inactive department.");
-                            return;
-                          }
-                          setFormState((prev) => ({
-                            ...prev,
-                            departmentId: option?.value ?? "",
-                            sectionId: "",
-                          }));
-                          setDepartmentError(option ? null : "Department is required.");
-                          setSectionError("Section is required.");
-                          setErrorMessage(null);
-                        }}
-                        disabled={loadingDepartments || isBusy}
-                          error={Boolean(departmentError)}
-                          helperText={
-                            loadingDepartments ? "Loading departments..." : departmentError ?? ""
-                          }
-                          required
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <CustomAutocomplete
-                        label="Section"
-                        options={sectionOptions}
-                        value={selectedSectionOption}
-                        onChange={(_, option) => {
-                          // Prevent selecting inactive sections (should be disabled, but check for safety)
-                          if (option && option.status === 0) {
-                            setSectionError("Cannot select an inactive section.");
-                            setErrorMessage("Cannot select an inactive section.");
-                            return;
-                          }
-                          setFormState((prev) => ({
-                            ...prev,
-                            sectionId: option?.value ?? "",
-                          }));
-                          setSectionError(option ? null : "Section is required.");
-                          setErrorMessage(null);
-                        }}
-                        disabled={!formState.departmentId || loadingSections || isBusy}
-                          error={Boolean(sectionError)}
-                        helperText={
-                          !formState.departmentId
-                            ? "Select department first"
-                            : loadingSections
-                            ? "Loading sections..."
-                              : sectionError ?? ""
-                        }
-                      />
-                    </Grid>
-                  </Grid>
-                </Stack>
-
-                <Stack spacing={2} sx={{ width: "100%" }}>
-                  <Grid container spacing={2} sx={{ width: "100%", m: 0 }}>
-                    <Grid item xs={12} sm={6}>
-                      <CustomTextField
-                        name="basicSalary"
-                        label="Basic Salary"
-                        value={formState.basicSalary}
-                        onChange={handleInputChange}
-                        required
-                        disabled={isBusy}
-                          error={Boolean(basicSalaryError)}
-                          helperText={basicSalaryError ?? ""}
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <CustomTextField
-                        name="travelAllowance"
-                        label="Travel Allowance"
-                        value={formState.travelAllowance}
-                        onChange={handleInputChange}
-                        disabled={isBusy}
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <CustomTextField
-                        name="otherAllowance"
-                        label="Other Allowance"
-                        value={formState.otherAllowance}
-                        onChange={handleInputChange}
-                        disabled={isBusy}
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <CustomTextField
-                        label="Total Salary"
-                        value={totalSalaryLabel}
-                        InputProps={{ readOnly: true }}
-                      />
-                    </Grid>
-                  </Grid>
-                </Stack>
-
-                {isEditMode && (
-                  <Stack spacing={2} sx={{ width: "100%" }}>
-                    <SectionHeader label="Status" />
-                    <FormControlLabel
-                      control={
-                        <CustomCheckbox
-                          name="active"
-                          checked={formState.active}
-                          onChange={handleInputChange}
-                          disabled={isBusy}
-                        />
-                      }
-                      label="Active"
-                      sx={{
-                        "& .MuiTypography-root": { fontSize: "0.85rem" },
-                      }}
-                    />
-                  </Stack>
-                )}
-              </Stack>
-            </Box>
           </Stack>
         </Box>
       </DialogContent>
     </Dialog>
 
-      <Dialog
+      <ConfirmationDialog
         open={isResetDialogOpen}
-        onClose={(_, reason) => {
-          if (reason === "backdropClick" || reason === "escapeKeyDown") {
-            if (isBusy) {
-              return;
-            }
-          }
-          handleCancelReset();
-        }}
-      >
-        <DialogTitle>Clear Form</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Are you sure you want to clear all form inputs? Unsaved changes will be lost.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCancelReset} disabled={isBusy}>
-            Cancel
-          </Button>
-          <Button onClick={handleConfirmReset} color="error" variant="contained" disabled={isBusy}>
-            Clear
-          </Button>
-        </DialogActions>
-      </Dialog>
+        onClose={handleCancelReset}
+        onConfirm={handleConfirmReset}
+        alertType="clearConfirmation"
+        isLoading={isBusy}
+        description="Unsaved changes will be lost."
+      />
 
-      <Dialog
+      <ConfirmationDialog
         open={isBackDialogOpen}
-        onClose={(_, reason) => {
-          if (reason === "backdropClick" || reason === "escapeKeyDown") {
-            if (isBusy) {
-              return;
-            }
-          }
-          handleCancelBack();
-        }}
-      >
-        <DialogTitle>Close Form</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Are you sure you want to go back? Unsaved changes will be lost.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCancelBack} disabled={isBusy}>
-            Stay
-          </Button>
-          <Button onClick={handleConfirmBack} color="error" variant="contained" disabled={isBusy}>
-            Go Back
-          </Button>
-        </DialogActions>
-      </Dialog>
+        onClose={handleCancelBack}
+        onConfirm={handleConfirmBack}
+        alertType="clearUnsavedData"
+        isLoading={isBusy}
+        description="Unsaved changes will be lost."
+      />
 
-      <Dialog
+      <ConfirmationDialog
         open={isSalaryConfirmDialogOpen}
-        onClose={(_, reason) => {
-          if (reason === "backdropClick" || reason === "escapeKeyDown") {
-            if (isBusy) {
-              return;
-            }
-          }
-          handleCancelSalaryConfirm();
-        }}
-      >
-        <DialogTitle>Confirm Salary</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Basic salary is less than or equal to the total allowances. Are you sure about that?
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCancelSalaryConfirm} disabled={isBusy}>
-            Cancel
-          </Button>
-          <Button onClick={handleConfirmSalaryConfirm} color="primary" variant="contained" disabled={isBusy}>
-            Yes, Continue
-          </Button>
-        </DialogActions>
-      </Dialog>
+        onClose={handleCancelSalaryConfirm}
+        onConfirm={handleConfirmSalaryConfirm}
+        alertType="custom"
+        isLoading={isBusy}
+        title="Confirm Salary"
+        description="Basic salary is less than or equal to the total allowances. Are you sure about that?"
+      />
     </>
   );
 };

@@ -9,22 +9,29 @@ import CustomTextField from "@/components/forms/text-field/custom-text-field";
 export type TableWithSearchProps = {
   searchText: string;
   setSearchText: Dispatch<SetStateAction<string>>;
+  width?: number | string;
+  marginBottom?: number | string;
 };
 
-const TableWithSearch = ({ searchText, setSearchText }: TableWithSearchProps) => {
+const TableWithSearch = ({
+  searchText,
+  setSearchText,
+  width = 350,
+  marginBottom = 2,
+}: TableWithSearchProps) => {
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
     setSearchText(event.target.value);
   };
 
   return (
-    <Box sx={{ mb: 2, display: "flex", justifyContent: "flex-end" }}>
+    <Box sx={{ mb: marginBottom, display: "flex", justifyContent: "flex-end" }}>
       <CustomTextField
         placeholder="Search..."
         size="small"
         value={searchText}
         onChange={handleChange}
         sx={{
-          width: 320,
+          width,
           maxWidth: "100%",
           "& .MuiOutlinedInput-root": {
             backgroundColor: "white",

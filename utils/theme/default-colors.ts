@@ -23,8 +23,21 @@ export const baselightTheme = createTheme({
   },
   typography: {
     fontFamily: "'Inter', 'Roboto', sans-serif",
+    body1: {
+      fontSize: "0.85rem",
+      lineHeight: 1.4,
+    },
     body2: {
       fontSize: "0.875rem",
+      lineHeight: 1.4,
+    },
+    subtitle1: {
+      fontSize: "0.85rem",
+      lineHeight: 1.4,
+    },
+    subtitle2: {
+      fontSize: "0.85rem",
+      lineHeight: 1.4,
     },
   },
 });
