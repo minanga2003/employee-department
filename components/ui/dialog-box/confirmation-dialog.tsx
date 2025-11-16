@@ -50,7 +50,7 @@ const AlertType = {
   },
   clearUnsavedData: {
     title: 'Clear Unsaved Data',
-    message: 'This will clear all unsaved data. Continue',
+    message: 'This will clear all unsaved data',
     icon: <WarningAmberIcon />,
     color: '#ed6c02',
   },

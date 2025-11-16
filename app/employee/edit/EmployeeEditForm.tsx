@@ -109,6 +109,28 @@ const parseNumber = (value: string) => {
   return Number.isFinite(numeric) ? numeric : 0;
 };
 
+const sanitizeNumericInput = (value: string, allowDecimal = false) => {
+  if (!value) return "";
+  const pattern = allowDecimal ? /[^0-9.]/g : /[^0-9]/g;
+  const sanitized = value.replace(pattern, "");
+  if (!allowDecimal) {
+    return sanitized;
+  }
+  const [integerPart, ...decimalParts] = sanitized.split(".");
+  const decimalPart = decimalParts.join("");
+  return decimalPart ? `${integerPart}.${decimalPart}` : integerPart;
+};
+
+const enforceNumericFieldRules = (name: string, value: string) => {
+  if (name === "empNo") {
+    return sanitizeNumericInput(value, false);
+  }
+  if (["basicSalary", "travelAllowance", "otherAllowance"].includes(name)) {
+    return sanitizeNumericInput(value, true);
+  }
+  return value;
+};
+
 const MINIMUM_EMPLOYEE_AGE = 18;
 const getAgeValidationMessage = (age: number) =>
   age > 0 && age < MINIMUM_EMPLOYEE_AGE
@@ -121,7 +143,40 @@ const getNameValidationMessage = (value: string) =>
     ? "Name must contain only letters and allowed punctuation (spaces, apostrophes, periods, hyphens)."
     : null;
 
+const DUPLICATE_EMP_NO_MESSAGE = "This employee number has already been used.";
+const isDuplicateEmpNoError = (value?: string | null) => {
+  if (!value) return false;
+  const normalized = value.toLowerCase();
+  if (normalized.includes("illegalargumentexception") && normalized.includes("employee number")) {
+    return true;
+  }
+
+  const duplicatePatterns = [
+    "employee number already exists",
+    "employee number already used",
+    "employee number has already been used",
+    "employee number has already been taken",
+    "duplicate empno",
+    "duplicate entry",
+    "unique constraint",
+  ];
+
+  if (duplicatePatterns.some((pattern) => normalized.includes(pattern))) {
+    return true;
+  }
+
+  if (/employee\s+number.*already.*used/.test(normalized)) {
+    return true;
+  }
+
+  return false;
+};
+
 const resolveEmployeeSaveError = (status: number, message?: string) => {
+  if (status === 409 || isDuplicateEmpNoError(message)) {
+    return DUPLICATE_EMP_NO_MESSAGE;
+  }
+
   const fallback =
     status >= 500
       ? "Failed to save employee. Please try again later."
@@ -134,16 +189,6 @@ const resolveEmployeeSaveError = (status: number, message?: string) => {
   }
 
   const normalized = message.toLowerCase();
-  if (
-    status === 409 ||
-    normalized.includes("duplicate") ||
-    normalized.includes("already") ||
-    normalized.includes("exists") ||
-    normalized.includes("unique")
-  ) {
-    return "Employee number already exists. Please use a different EMP No.";
-  }
-
   if (status === 400 || normalized.includes("bad request")) {
     return "Unable to save employee. Please review the form and correct any errors.";
   }
@@ -509,8 +554,10 @@ export const EmployeeEditForm = () => {
       return;
     }
 
+    const nextValue = enforceNumericFieldRules(name, value);
+
     setFormState((prev) => {
-      const updated: FormState = { ...prev, [name]: value };
+      const updated: FormState = { ...prev, [name]: nextValue };
 
       if (name === "dob") {
         updated.age = calculateAge(value);
@@ -518,19 +565,13 @@ export const EmployeeEditForm = () => {
       } else if (name === "name") {
         setNameError(getNameValidationMessage(value));
       } else if (name === "empNo") {
-        setEmpNoError(value.trim() ? null : "Employee number is required.");
+        setEmpNoError(nextValue.trim() ? null : "Employee number is required.");
       } else if (name === "basicSalary") {
-        setBasicSalaryError(value.trim() ? null : "Basic salary is required.");
+        setBasicSalaryError(nextValue.trim() ? null : "Basic salary is required.");
       }
 
       if (["basicSalary", "travelAllowance", "otherAllowance"].includes(name)) {
         updated.totalSalary = calculateTotalSalary(updated);
-        
-        // Check if basic salary is less than or equal to total allowances
-        // Show confirmation dialog when condition is met
-        if (checkBasicSalaryValidation(updated)) {
-          setIsSalaryConfirmDialogOpen(true);
-        }
       }
 
       return updated;
@@ -616,7 +657,10 @@ export const EmployeeEditForm = () => {
 
   const handleConfirmSalaryConfirm = () => {
     setIsSalaryConfirmDialogOpen(false);
-    setPendingSubmit(false);
+    if (pendingSubmit) {
+      setPendingSubmit(false);
+      void performSubmit(true);
+    }
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -624,7 +668,7 @@ export const EmployeeEditForm = () => {
     await performSubmit();
   };
 
-  const performSubmit = async () => {
+  const performSubmit = async (overrideSalaryValidation = false) => {
     setHasAttemptedSubmit(true);
     setSubmissionState("submitting");
     setErrorMessage(null);
@@ -707,6 +751,13 @@ export const EmployeeEditForm = () => {
       setSubmissionState("error");
       setBasicSalaryError("Basic salary is required.");
       setErrorMessage("Basic salary is required.");
+      return;
+    }
+
+    if (checkBasicSalaryValidation(formState) && !overrideSalaryValidation) {
+      setSubmissionState("idle");
+      setPendingSubmit(true);
+      setIsSalaryConfirmDialogOpen(true);
       return;
     }
 
@@ -823,7 +874,13 @@ export const EmployeeEditForm = () => {
       setSuccessMessage(successText);
     } catch (err) {
       setSubmissionState("error");
-      setErrorMessage(err instanceof Error ? err.message : "Failed to save employee.");
+      const message = err instanceof Error ? err.message : "Failed to save employee.";
+      if (isDuplicateEmpNoError(message)) {
+        setEmpNoError(DUPLICATE_EMP_NO_MESSAGE);
+        setErrorMessage(DUPLICATE_EMP_NO_MESSAGE);
+      } else {
+        setErrorMessage(message);
+      }
     }
   };
 
@@ -1102,12 +1159,10 @@ export const EmployeeEditForm = () => {
         onConfirm={handleConfirmSalaryConfirm}
         alertType="custom"
         isLoading={submissionState === "submitting"}
-        title="Confirm Salary"
-        description="Basic salary is less than or equal to the total allowances. Are you sure about that?"
+        title = "Confirm Salary"
+        description = "The total allowances are more than the basic salary. Are you sure about that?"
       />
     </PageContainer>
   );
 };
-
 export default EmployeeEditForm;
-

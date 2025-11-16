@@ -362,7 +362,11 @@ export function FixedColumnsDataTable<T extends object>({
 
   React.useEffect(() => {
     if (columnOrder.length === 0) {
-      const initial = columns.map((column) => String(column.id ?? column.accessorKey));
+      const initial = columns.map((column, index) => {
+        const col: any = column;
+        const id = col.id ?? col.accessorKey ?? index;
+        return String(id);
+      });
       setColumnOrder(initial);
     }
   }, [columnOrder.length, columns]);
@@ -644,7 +648,11 @@ export function FixedColumnsDataTable<T extends object>({
     if (typeof window === "undefined") return;
     const element = containerRef.current;
     if (!element) return;
-    const checkOverflow = () => setHasHOverflow(element.scrollWidth > element.clientWidth);
+    const checkOverflow = () => {
+      const hasOverflow = element.scrollWidth > element.clientWidth;
+      // Only update state when the value actually changes to avoid unnecessary re-renders
+      setHasHOverflow((prev) => (prev !== hasOverflow ? hasOverflow : prev));
+    };
     checkOverflow();
     const observer = new ResizeObserver(checkOverflow);
     observer.observe(element);
@@ -653,7 +661,10 @@ export function FixedColumnsDataTable<T extends object>({
       observer.disconnect();
       window.removeEventListener("resize", checkOverflow);
     };
-  }, [data, columns, columnSizing, pageIndex, pageSize]);
+    // We intentionally run this effect only once on mount. ResizeObserver and the window
+    // resize listener will keep `hasHOverflow` in sync with layout changes, and limiting
+    // re-runs prevents update loops that can trigger "Maximum update depth exceeded" errors.
+  }, []);
 
   const rows = table.getRowModel().rows;
 

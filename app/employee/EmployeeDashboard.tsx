@@ -505,8 +505,8 @@ export const EmployeeDashboard = () => {
         isLoading={isDeletingSelectedEmployee}
         description={
           pendingDeleteEmployee
-            ? `${pendingDeleteEmployee.name}? This action cannot be undone.`
-            : "this employee? This action cannot be undone."
+            ? pendingDeleteEmployee.name
+            : "this employee"
         }
       />
 
