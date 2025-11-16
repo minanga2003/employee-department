@@ -17,6 +17,11 @@ type EmployeeTableProps = {
   formatCurrency: (amount: number) => string;
 };
 
+/**
+ * Presents employees inside the reusable `FixedColumnsDataTable`. Consumers
+ * pass in remote data state (loading/error), control callbacks, and helpers
+ * such as `formatCurrency` to keep the component UI-focused.
+ */
 export const EmployeeTable = ({
   employees,
   loading,
@@ -27,12 +32,16 @@ export const EmployeeTable = ({
   pageTotalSalary,
   formatCurrency,
 }: EmployeeTableProps) => {
+  // Columns are memoised to avoid re-creating the TanStack column objects on
+  // every render and to keep drag/sort metadata stable.
   const columns = useMemo<ColumnDef<Employee, unknown>[]>(
     () => [
       {
         id: "actions",
         header: () => "",
         meta: { headerAlign: "center", hideSort: true, hideDragHandle: true },
+        // Primary action cluster (edit/delete). Buttons share styling but keep
+        // their own handlers so we can individually disable during deletes.
         cell: ({ row }) => {
           const employee = row.original;
           const isInactive = !employee.active;
@@ -100,6 +109,8 @@ export const EmployeeTable = ({
         },
       },
       {
+        // Numeric columns inherit right-aligned typography to create a clean
+        // ledger-style appearance.
         accessorKey: "empNo",
         header: () => "Emp No",
         meta: { headerAlign: "right" },
@@ -199,6 +210,7 @@ export const EmployeeTable = ({
     [deletingId, formatCurrency, onDeleteRequest, onEdit]
   );
 
+  // Flag used to show the friendly "no employees found" state.
   const noData = !loading && !error && employees.length === 0;
 
   return (

@@ -1,21 +1,14 @@
 "use client";
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import dayjs from "dayjs";
-import { buildApiUrl } from "@/lib/apiConfig";
+import { ApiError, fetchDepartments, fetchEmployeeById, fetchSectionsByDepartment, upsertEmployee } from "@/app/employee/api";
+import type { Department, Section } from "@/app/employee/types";
 import NewEmployeeDialogView from "./NewEmployeeDialogView";
 
-export type Department = {
-  id: number;
-  name: string;
-  status?: number; 
-};
-
-export type Section = {
-  id: number;
-  name: string;
-  status?: number; 
-};
-
+/**
+ * Canonical shape of the form. Keeping it centralized ensures both create and
+ * edit flows derive from the same source of truth and makes resets predictable.
+ */
 export type FormState = {
   empNo: string;
   name: string;
@@ -33,13 +26,12 @@ export type FormState = {
 
 type SubmissionState = "idle" | "submitting";
 
-export type Option = { 
-  label: string; 
-  value: string; 
-  status?: number; 
+export type Option = {
+  label: string;
+  value: string;
+  status?: number;
   disabled?: boolean;
 };
-
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -176,6 +168,11 @@ const enforceNumericFieldRules = (name: string, value: string) => {
   return value;
 };
 
+/**
+ * Hosts the full create/edit workflow. All remote data fetching, form
+ * validation, dirty-state detection and confirmation dialogs live here to keep
+ * downstream components stateless.
+ */
 export const NewEmployeeDialog = ({
   open,
   mode = "create",
@@ -213,6 +210,8 @@ export const NewEmployeeDialog = ({
 
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
+  // Tracks whether core required inputs are populated. Used to drive both
+  // submit validation and the informational banner.
   const requiredFieldsFilled = useMemo(() => {
     const hasEmpNo = formState.empNo.trim().length > 0;
     const hasName = formState.name.trim().length > 0;
@@ -244,26 +243,17 @@ export const NewEmployeeDialog = ({
     const loadDepartments = async () => {
       setLoadingDepartments(true);
       try {
-        const url = buildApiUrl("/api/departments");
-        const response = await fetch(url, { signal: controller.signal });
-        if (!response.ok) {
-          throw new Error(`Failed to load departments (${response.status})`);
-        }
-        const data = (await response.json()) as Department[] | Department;
-        const list = Array.isArray(data) ? data : [data];
+        const items = await fetchDepartments(controller.signal);
         if (isActive) {
-          setDepartments(
-            list
-              .map((dept) => ({
-                id: Number(dept.id),
-                name: dept.name,
-                status: dept.status !== undefined ? Number(dept.status) : 1, // Default to active if not provided
-              }))
-              .sort((a, b) => a.name.localeCompare(b.name))
-          );
+          setDepartments(items);
         }
       } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") return;
+        if (
+          (err instanceof DOMException && err.name === "AbortError") ||
+          (err instanceof Error && err.name === "AbortError")
+        ) {
+          return;
+        }
         if (isActive) {
           setErrorMessage(err instanceof Error ? err.message : "Unable to load departments");
         }
@@ -318,14 +308,7 @@ export const NewEmployeeDialog = ({
       setLoadingEmployee(true);
       setErrorMessage(null);
       try {
-        const url = buildApiUrl(`/api/employees/${employeeId}`);
-        const response = await fetch(url, { signal: controller.signal });
-        if (!response.ok) {
-          const body = await response.text();
-          throw new Error(body || `Failed to load employee (${response.status})`);
-        }
-
-        const data = await response.json();
+        const data = await fetchEmployeeById(employeeId, controller.signal);
         if (!isActive || !data) return;
 
         const nextState: FormState = {
@@ -353,7 +336,12 @@ export const NewEmployeeDialog = ({
         setSectionError(null);
         setBasicSalaryError(null);
       } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") return;
+        if (
+          (err instanceof DOMException && err.name === "AbortError") ||
+          (err instanceof Error && err.name === "AbortError")
+        ) {
+          return;
+        }
         if (!isActive) return;
         setErrorMessage(
           err instanceof Error ? err.message : "Something went wrong while loading the employee."
@@ -382,6 +370,7 @@ export const NewEmployeeDialog = ({
     };
   }, [open, isEditMode, employeeId]);
 
+  // Refresh sections whenever the department changes.
   useEffect(() => {
     if (!formState.departmentId) {
       setSections([]);
@@ -395,44 +384,17 @@ export const NewEmployeeDialog = ({
     const loadSections = async () => {
       setLoadingSections(true);
       try {
-        const url = buildApiUrl(`/api/sections?departmentId=${formState.departmentId}`);
-        const response = await fetch(url, { signal: controller.signal });
-        if (!response.ok) {
-          throw new Error(`Failed to load sections (${response.status})`);
-        }
-        const data = (await response.json()) as Section[] | Section;
-        const list = Array.isArray(data) ? data : [data];
+        const list = await fetchSectionsByDepartment(formState.departmentId, controller.signal);
         if (isActive) {
-          // Map sections and deduplicate by name
-          // Strategy: Collect all sections by name, then pick the best one (active preferred, then lowest ID)
-          const sectionsByName = new Map<string, Array<{ id: number; name: string; status: number }>>();
-          
-          // First pass: collect all sections grouped by name
-          list.forEach((sec) => {
-            const sectionName = sec.name;
-            const sectionId = Number(sec.id);
-            const sectionStatus = sec.status !== undefined ? Number(sec.status) : 1;
-            
-            if (!sectionsByName.has(sectionName)) {
-              sectionsByName.set(sectionName, []);
-            }
-            sectionsByName.get(sectionName)!.push({
-              id: sectionId,
-              name: sectionName,
-              status: sectionStatus,
-            });
-          });
-          const sectionMap = new Map<string, { id: number; name: string; status: number }>();
-          sectionsByName.forEach((sections, name) => {
-            const sorted = sections.sort((a, b) => b.id - a.id); 
-            sectionMap.set(name, sorted[0]);
-          });
-          setSections(
-            Array.from(sectionMap.values()).sort((a, b) => a.name.localeCompare(b.name))
-          );
+          setSections(list);
         }
       } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") return;
+        if (
+          (err instanceof DOMException && err.name === "AbortError") ||
+          (err instanceof Error && err.name === "AbortError")
+        ) {
+          return;
+        }
         if (isActive) {
           setErrorMessage(err instanceof Error ? err.message : "Unable to load sections");
         }
@@ -451,6 +413,7 @@ export const NewEmployeeDialog = ({
     };
   }, [formState.departmentId]);
 
+  // Centralised logic used by both reset button and dialog confirmations.
   const performReset = useCallback(() => {
     if (isEditMode && loadedFormState) {
       setFormState(loadedFormState);
@@ -497,7 +460,7 @@ export const NewEmployeeDialog = ({
       label: dept.name,
       value: String(dept.id),
       status: dept.status,
-      disabled: dept.status === 0, // Disable inactive departments
+      disabled: dept.status === 0, 
     }));
   }, [departments]);
 
@@ -620,6 +583,8 @@ export const NewEmployeeDialog = ({
     const other = parseNumber(state.otherAllowance);
     return basic + travel + other;
   };
+  // Determines whether total allowances exceed the basic salary, which
+  // triggers the confirmation dialog to prevent accidental data entry.
   const checkBasicSalaryValidation = (state: FormState) => {
     const basic = parseNumber(state.basicSalary);
     const travel = parseNumber(state.travelAllowance);
@@ -740,48 +705,11 @@ export const NewEmployeeDialog = ({
         throw new Error("Please select both department and section.");
       }
 
-      let url = buildApiUrl("/api/employees");
-      let method: "POST" | "PUT" = "POST";
-      if (isEditMode) {
-        if (!employeeId) {
-          throw new Error("Employee identifier is missing.");
-        }
-        url = buildApiUrl(`/api/employees/${employeeId}`);
-        method = "PUT";
+      if (isEditMode && !employeeId) {
+        throw new Error("Employee identifier is missing.");
       }
 
-      const response = await fetch(url, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        let errorMessageFromServer = "";
-        try {
-          const contentType = response.headers.get("content-type") ?? "";
-          if (contentType.includes("application/json")) {
-            const errorJson = await response.json();
-            if (typeof errorJson === "string") {
-              errorMessageFromServer = errorJson;
-            } else if (errorJson && typeof errorJson === "object") {
-              errorMessageFromServer =
-                (errorJson.message as string) ??
-                (errorJson.error as string) ??
-                (errorJson.detail as string) ??
-                "";
-            }
-          } else {
-            errorMessageFromServer = (await response.text()) ?? "";
-          }
-        } catch {
-          errorMessageFromServer = "";
-        }
-
-        throw new Error(resolveEmployeeSaveError(response.status, errorMessageFromServer.trim()));
-      }
+      await upsertEmployee(payload, isEditMode ? { employeeId } : undefined);
 
       if (isEditMode) {
         onUpdated?.();
@@ -790,12 +718,17 @@ export const NewEmployeeDialog = ({
       }
       onClose();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to save employee.";
-      if (isDuplicateEmpNoError(message)) {
+      const resolvedMessage =
+        err instanceof ApiError
+          ? resolveEmployeeSaveError(err.status, err.message)
+          : err instanceof Error
+            ? err.message
+            : "Failed to save employee.";
+      if (isDuplicateEmpNoError(resolvedMessage)) {
         setEmpNoError(DUPLICATE_EMP_NO_MESSAGE);
         setErrorMessage(DUPLICATE_EMP_NO_MESSAGE);
       } else {
-        setErrorMessage(message);
+        setErrorMessage(resolvedMessage);
       }
     } finally {
       setSubmissionState("idle");

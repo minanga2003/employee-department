@@ -1,5 +1,4 @@
 "use client";
-
 import { ChangeEvent, FormEvent } from "react";
 import { Dialog, DialogContent, DialogTitle, IconButton, useMediaQuery, useTheme } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
@@ -57,6 +56,11 @@ type NewEmployeeDialogViewProps = {
   requiredFieldsFilled: boolean;
 };
 
+/**
+ * Drives the dialog layout for both create and edit flows. All callbacks and
+ * validation state come from `NewEmployeeDialog`, which keeps this component
+ * easy to snapshot-test and reuse.
+ */
 const NewEmployeeDialogView = ({
   open,
   isEditMode,
@@ -105,6 +109,7 @@ const NewEmployeeDialogView = ({
   requiredFieldsFilled,
 }: NewEmployeeDialogViewProps) => {
   const theme = useTheme();
+  // Avoid cramped content on mobile by switching the dialog into full-screen mode.
   const fullScreen = useMediaQuery(theme.breakpoints.down("md"));
 
   return (

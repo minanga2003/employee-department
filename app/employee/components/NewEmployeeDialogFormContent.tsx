@@ -1,5 +1,4 @@
 "use client";
-
 import { ChangeEvent, FormEvent } from "react";
 import {
   Alert,
@@ -62,6 +61,11 @@ export type NewEmployeeDialogFormContentProps = {
   isEditMode: boolean;
 };
 
+/**
+ * Lays out the new employee form in three logical sections (personal details,
+ * department/section selection, and salary). Callbacks bubble field changes
+ * back to the controller so that validation and derived state stay centralized.
+ */
 const NewEmployeeDialogFormContent = ({
   formId,
   handleSubmit,
@@ -112,6 +116,7 @@ const NewEmployeeDialogFormContent = ({
       }}
     >
       <Stack spacing={3}>
+        {/* Global response banners */}
         {errorMessage && (
           <Alert severity="error" variant="outlined">
             {errorMessage}
@@ -133,6 +138,7 @@ const NewEmployeeDialogFormContent = ({
           </Stack>
         )}
 
+        {/* Scrollable main form area to keep action buttons fixed */}
         <Box
           sx={{
             maxHeight: { xs: "unset", md: "60vh" },
@@ -141,6 +147,7 @@ const NewEmployeeDialogFormContent = ({
           }}
         >
           <Stack spacing={3}>
+            {/* Personal details */}
             <Stack spacing={2} sx={{ width: "100%" }}>
               <SectionHeader label="Personal Details" />
               <Grid2 container spacing={2} sx={{ width: "100%", m: 0 }}>
@@ -206,6 +213,7 @@ const NewEmployeeDialogFormContent = ({
               </Grid2>
             </Stack>
 
+            {/* Department & Section selection */}
             <Stack spacing={2} sx={{ width: "100%" }}>
               <Grid2 container spacing={2} sx={{ width: "100%", m: 0 }}>
                 <Grid2 size={{ xs: 12, sm: 6 }}>
@@ -245,6 +253,7 @@ const NewEmployeeDialogFormContent = ({
               </Grid2>
             </Stack>
 
+            {/* Salary inputs */}
             <Stack spacing={2} sx={{ width: "100%" }}>
               <Grid2 container spacing={2} sx={{ width: "100%", m: 0 }}>
                 <Grid2 size={{ xs: 12, sm: 6 }}>
@@ -312,6 +321,7 @@ const NewEmployeeDialogFormContent = ({
 
         <CustomDivider />
 
+        {/* Footer actions */}
         <Stack
           direction={{ xs: "column", sm: "row" }}
           spacing={{ xs: 1, sm: 1.5 }}

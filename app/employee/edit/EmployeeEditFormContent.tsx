@@ -54,6 +54,10 @@ type EmployeeEditFormContentProps = {
   salarySummary: SalarySummaryItem[];
 };
 
+/**
+ * Lays out the edit form alongside salary summary + action buttons. All props
+ * are sourced from the controller, keeping this component purely visual.
+ */
 const EmployeeEditFormContent = ({
   isEditMode,
   errorMessage,
@@ -105,6 +109,7 @@ const EmployeeEditFormContent = ({
     <BlankCard>
       <Box component="form" id={FORM_ID} onSubmit={handleSubmit} sx={{ p: 3 }}>
         <Stack spacing={3}>
+          {/* Primary actions */}
           <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
             <ButtonLoader type="submit" variant="contained" loading={isSubmitting} disabled={isSubmitting}>
               {isEditMode ? "Update" : "Save"}
@@ -125,6 +130,7 @@ const EmployeeEditFormContent = ({
 
           <CustomDivider />
 
+          {/* Core form grid */}
           <Grid2 container spacing={2}>
             <Grid2 size={{ xs: 12, sm: 6 }}>
               <CustomTextField
@@ -251,6 +257,7 @@ const EmployeeEditFormContent = ({
           </Grid2>
 
           {isEditMode && (
+            // Only show the status toggle when editing an existing employee.
             <Stack spacing={2} sx={{ width: "100%" }}>
               <SectionHeader label="Status" />
               <FormControlLabel

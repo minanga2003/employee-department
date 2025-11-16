@@ -19,7 +19,7 @@ import TableWithSearch from "@/components/ui/data-table/search-data-table";
 import ConfirmationDialog from "@/components/ui/dialog-box/confirmation-dialog";
 import PageContainer from "@/components/layouts/container/page-container";
 
-import { buildApiUrl } from "../../lib/apiConfig";
+import { ApiError, deleteEmployee as deleteEmployeeApi, fetchDepartments, fetchEmployees as fetchEmployeesApi, fetchSectionsByDepartment } from "@/app/employee/api";
 import { EmployeeTable } from "./components/EmployeeTable";
 import NewEmployeeDialog from "./components/NewEmployeeDialog";
 import type { Department, Employee, PagedEmployeesResponse, Section } from "./types";
@@ -59,6 +59,10 @@ type Option = {
   disabled?: boolean;
 };
 
+/**
+ * Main dashboard component. Handles filter state, remote fetches, and dialog
+ * visibility before rendering reusable UI elements.
+ */
 export const EmployeeDashboard = () => {
   const theme = useTheme();
   const [activeOnly, setActiveOnly] = useState(true);
@@ -91,26 +95,17 @@ export const EmployeeDashboard = () => {
 
     const loadDepartments = async () => {
       try {
-        const url = buildApiUrl("/api/departments");
-        const response = await fetch(url, { signal: controller.signal });
-        if (!response.ok) {
-          throw new Error(`Failed to load departments (${response.status})`);
-        }
-        const data = (await response.json()) as Department[] | Department;
-        const items = Array.isArray(data) ? data : [data];
+        const items = await fetchDepartments(controller.signal);
         if (isActive) {
-          setDepartments(
-            items
-              .map((item) => ({
-                id: Number(item.id),
-                name: item.name,
-                status: item.status !== undefined ? Number(item.status) : 1, 
-              }))
-              .sort((a, b) => a.name.localeCompare(b.name))
-          );
+          setDepartments(items);
         }
       } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") return;
+        if (
+          (err instanceof DOMException && err.name === "AbortError") ||
+          (err instanceof Error && err.name === "AbortError")
+        ) {
+          return;
+        }
         if (isActive) {
           setError(
             err instanceof Error
@@ -139,41 +134,17 @@ export const EmployeeDashboard = () => {
 
     const loadSections = async () => {
       try {
-        const url = buildApiUrl(`/api/sections?departmentId=${department}`);
-        const response = await fetch(url, { signal: controller.signal });
-        if (!response.ok) {
-          throw new Error(`Failed to load sections (${response.status})`);
-        }
-        const data = (await response.json()) as Section[] | Section;
-        const items = Array.isArray(data) ? data : [data];
+        const items = await fetchSectionsByDepartment(department, controller.signal);
         if (isActive) {
-          const sectionsByName = new Map<string, Array<{ id: number; name: string; status: number }>>();
-
-          items.forEach((item) => {
-            const sectionName = item.name;
-            const sectionId = Number(item.id);
-            const sectionStatus = item.status !== undefined ? Number(item.status) : 1;
-            
-            if (!sectionsByName.has(sectionName)) {
-              sectionsByName.set(sectionName, []);
-            }
-            sectionsByName.get(sectionName)!.push({
-              id: sectionId,
-              name: sectionName,
-              status: sectionStatus,
-            });
-          });
-          const sectionMap = new Map<string, { id: number; name: string; status: number }>();
-          sectionsByName.forEach((sections, name) => {
-            const sorted = sections.sort((a, b) => b.id - a.id); 
-            sectionMap.set(name, sorted[0]);
-          });
-          setSections(
-            Array.from(sectionMap.values()).sort((a, b) => a.name.localeCompare(b.name))
-          );
+          setSections(items);
         }
       } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") return;
+        if (
+          (err instanceof DOMException && err.name === "AbortError") ||
+          (err instanceof Error && err.name === "AbortError")
+        ) {
+          return;
+        }
         if (isActive) {
           setError(err instanceof Error ? err.message : "Unable to fetch sections");
         }
@@ -188,6 +159,7 @@ export const EmployeeDashboard = () => {
     };
   }, [department]);
 
+  // Fetch employees whenever filters/search/debounced text change.
   useEffect(() => {
     const controller = new AbortController();
     let isActive = true;
@@ -198,43 +170,18 @@ export const EmployeeDashboard = () => {
         setNotification(null);
       }
       try {
-        const url = buildApiUrl("/api/employees");
-        if (activeOnly) {
-          url.searchParams.set("active", "true");
-        }
-        if (department !== "all") {
-          url.searchParams.set("departmentId", department);
-        }
-        if (section !== "all") {
-          url.searchParams.set("sectionId", section);
-        }
-        if (debouncedSearch.trim()) {
-          url.searchParams.set("q", debouncedSearch.trim());
-        }
-        url.searchParams.set("page", "0");
-        url.searchParams.set("size", "50");
-        url.searchParams.set("sort", "empNo");
-
-        const response = await fetch(url, { signal: controller.signal });
-        if (!response.ok) {
-          let errorMessage = `Failed to load employees (${response.status})`;
-          try {
-            const errorData = await response.json();
-            if (errorData && typeof errorData === "object") {
-              if (errorData.message) {
-                errorMessage = errorData.message;
-              } else if (errorData.error) {
-                errorMessage = errorData.error;
-              }
-            } else if (typeof errorData === "string") {
-              errorMessage = errorData;
-            }
-          } catch {
-            // If we can't parse the error response, use the default message
-          }
-          throw new Error(errorMessage);
-        }
-        const raw = (await response.json()) as PagedEmployeesResponse;
+        const raw = await fetchEmployeesApi(
+          {
+            activeOnly,
+            departmentId: department !== "all" ? department : undefined,
+            sectionId: section !== "all" ? section : undefined,
+            search: debouncedSearch.trim() || undefined,
+            page: 0,
+            size: 50,
+            sort: "empNo",
+          },
+          controller.signal
+        );
         if (!isActive) return;
 
         const parsedEmployees = (raw.content ?? []).map((emp) => ({
@@ -256,14 +203,22 @@ export const EmployeeDashboard = () => {
           pendingNotificationRef.current = null;
         }
       } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") return;
+        if (
+          (err instanceof DOMException && err.name === "AbortError") ||
+          (err instanceof Error && err.name === "AbortError")
+        ) {
+          return;
+        }
         if (!isActive) return;
         setEmployees([]);
         setPageTotalSalary(0);
         pendingNotificationRef.current = null;
-        const errorMessage = err instanceof Error 
-          ? err.message 
-          : "Something went wrong while fetching employees";
+        const errorMessage =
+          err instanceof ApiError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : "Something went wrong while fetching employees";
         setError(
           errorMessage.includes("500") 
             ? "Server error: Unable to load employees. Please check the backend server logs for details."
@@ -351,17 +306,17 @@ export const EmployeeDashboard = () => {
     setNotification(null);
 
     try {
-      const url = buildApiUrl(`/api/employees/${employeeId}`);
-      const response = await fetch(url, { method: "DELETE" });
-      if (!response.ok) {
-        const body = await response.text();
-        throw new Error(body || `Failed to delete employee (${response.status})`);
-      }
-
+      await deleteEmployeeApi(employeeId);
       pendingNotificationRef.current = "Employee deleted successfully.";
       setReloadKey((prev) => prev + 1);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete employee.");
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Failed to delete employee.";
+      setError(message);
     } finally {
       setPendingDeleteId(null);
       setDeletingId(null);
@@ -372,7 +327,7 @@ export const EmployeeDashboard = () => {
     <PageContainer title="Employee">
       <Box sx={{ width: "99%", overflowX: "hidden" }}>
       <Grid2 container spacing={1}>
-        {/* First Row - Filters */}
+        {/* Filter Row */}
         <Grid2 size={{ lg: 12 }} sx={{ mt: 1, ml: 1 }}>
           <Box sx={{ width: "100%" }}>
             <Stack
@@ -433,7 +388,7 @@ export const EmployeeDashboard = () => {
           </Box>
         </Grid2>
 
-        {/* Second Row - New Employee Button */}
+        {/* Creation CTA */}
         <Grid2 size={{ lg: 12 }} sx={{ ml: 1 }}>
           <Stack
             direction="row"
@@ -454,7 +409,7 @@ export const EmployeeDashboard = () => {
           </Stack>
         </Grid2>
 
-        {/* Data Table */}
+        {/* Results Table */}
         <Grid2 size={{ lg: 12 }} sx={{ mt: 1, ml: 1 }}>
           <BlankCard>
             <Box sx={{ display: "inline-block", overflowX: "auto", width: "100%" }}>

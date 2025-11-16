@@ -1,5 +1,4 @@
 "use client";
-
 import ConfirmationDialog from "@/components/ui/dialog-box/confirmation-dialog";
 
 type NewEmployeeDialogConfirmationDialogsProps = {
@@ -15,6 +14,11 @@ type NewEmployeeDialogConfirmationDialogsProps = {
   isBusy: boolean;
 };
 
+/**
+ * Renders reset, back-navigation and salary-validation confirmation dialogs.
+ * Each dialog receives precise handlers from the parent so this component
+ * remains stateless and easy to reason about in tests.
+ */
 const NewEmployeeDialogConfirmationDialogs = ({
   isResetDialogOpen,
   handleCancelReset,

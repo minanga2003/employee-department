@@ -1,5 +1,4 @@
 "use client";
-
 import { Divider, Stack, Typography, useTheme } from "@mui/material";
 
 type SectionHeaderProps = {
@@ -7,6 +6,10 @@ type SectionHeaderProps = {
   spacingTop?: number;
 };
 
+/**
+ * Displays a labeled divider that visually separates logical areas inside a form.
+ * `spacingTop` lets each caller fine tune the vertical rhythm without rewriting style objects.
+ */
 const SectionHeader = ({ label, spacingTop = 1 }: SectionHeaderProps) => {
   const theme = useTheme();
 

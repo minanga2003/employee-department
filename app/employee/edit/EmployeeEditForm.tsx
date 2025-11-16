@@ -2,20 +2,10 @@
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import dayjs from "dayjs";
+import { ApiError, fetchDepartments, fetchEmployeeById, fetchSectionsByDepartment, upsertEmployee } from "@/app/employee/api";
+import type { EmployeeResponse } from "@/app/employee/api";
+import type { Department, Section } from "@/app/employee/types";
 import EmployeeEditFormView from "./EmployeeEditFormView";
-import { buildApiUrl } from "../../../lib/apiConfig";
-
-export type Department = {
-  id: number;
-  name: string;
-  status?: number; // 1 = active, 0 = inactive
-};
-
-export type Section = {
-  id: number;
-  name: string;
-  status?: number; // 1 = active, 0 = inactive
-};
 
 export type FormState = {
   empNo: string;
@@ -32,30 +22,13 @@ export type FormState = {
   active: boolean;
 };
 type SubmissionState = "idle" | "submitting" | "success" | "error";
-export type Option = { 
-  label: string; 
-  value: string; 
-  status?: number; 
+export type Option = {
+  label: string;
+  value: string;
+  status?: number;
   disabled?: boolean;
 };
 export type SalarySummaryItem = { label: string; value: string };
-type EmployeeResponse = {
-  id: number;
-  empNo: number;
-  name: string;
-  dob?: string | null;
-  age?: number | null;
-  email: string;
-  departmentId?: number | null;
-  departmentName?: string | null;
-  sectionId?: number | null;
-  sectionName?: string | null;
-  basicSalary?: number | string | null;
-  travelAllowance?: number | string | null;
-  otherAllowance?: number | string | null;
-  totalSalary?: number | string | null;
-  active: boolean;
-};
 const initialState: FormState = {
   empNo: "",
   name: "",
@@ -103,6 +76,15 @@ const enforceNumericFieldRules = (name: string, value: string) => {
     return sanitizeNumericInput(value, true);
   }
   return value;
+};
+
+const toInputString = (value: unknown) => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) return "";
+    return value.toString();
+  }
+  return String(value ?? "");
 };
 const MINIMUM_EMPLOYEE_AGE = 18;
 const getAgeValidationMessage = (age: number) =>
@@ -157,6 +139,10 @@ const resolveEmployeeSaveError = (status: number, message?: string) => {
   }
   return message;
 };
+/**
+ * Renders the edit/create form as a full page. Shares most logic with the
+ * dialog variant but derives the employee id from the URL instead of props.
+ */
 export const EmployeeEditForm = () => {
   const searchParams = useSearchParams();
   const employeeIdParam = searchParams.get("id");
@@ -219,6 +205,7 @@ export const EmployeeEditForm = () => {
   const showSectionRequiredError = hasAttemptedSubmit && !formState.sectionId;
   const showBasicSalaryRequiredError = hasAttemptedSubmit && !formState.basicSalary.trim();
 
+  // React to query-string changes so deep links re-fetch the correct employee.
   useEffect(() => {
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -242,23 +229,11 @@ export const EmployeeEditForm = () => {
     const controller = new AbortController();
     let isActive = true;
 
-    const toInputString = (value: unknown) => {
-      if (value === null || value === undefined) return "";
-      return typeof value === "number" ? value.toString() : String(value);
-    };
-
     const loadEmployee = async () => {
       setLoadingEmployee(true);
       try {
-        const url = buildApiUrl(`/api/employees/${employeeId}`);
-        const response = await fetch(url, { signal: controller.signal });
-        if (!response.ok) {
-          const body = await response.text();
-          throw new Error(body || `Failed to load employee (${response.status})`);
-        }
-
-        const data = (await response.json()) as EmployeeResponse;
-        if (!isActive) return;
+        const data = await fetchEmployeeById(employeeId, controller.signal);
+        if (!isActive || !data) return;
 
         const nextState: FormState = {
           empNo: toInputString(data.empNo ?? ""),
@@ -285,7 +260,12 @@ export const EmployeeEditForm = () => {
         setSectionError(null);
         setBasicSalaryError(null);
       } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") return;
+        if (
+          (err instanceof DOMException && err.name === "AbortError") ||
+          (err instanceof Error && err.name === "AbortError")
+        ) {
+          return;
+        }
         if (!isActive) return;
         setErrorMessage(
           err instanceof Error ? err.message : "Something went wrong while loading the employee."
@@ -313,6 +293,7 @@ export const EmployeeEditForm = () => {
     };
   }, [employeeId]);
 
+  // Initial load of departments for the autocomplete.
   useEffect(() => {
     const controller = new AbortController();
     let isActive = true;
@@ -320,26 +301,17 @@ export const EmployeeEditForm = () => {
     const loadDepartments = async () => {
       setLoadingDepartments(true);
       try {
-        const url = buildApiUrl("/api/departments");
-        const response = await fetch(url, { signal: controller.signal });
-        if (!response.ok) {
-          throw new Error(`Failed to load departments (${response.status})`);
-        }
-        const data = (await response.json()) as Department[] | Department;
-        const list = Array.isArray(data) ? data : [data];
+        const items = await fetchDepartments(controller.signal);
         if (isActive) {
-          setDepartments(
-            list
-              .map((dept) => ({
-                id: Number(dept.id),
-                name: dept.name,
-                status: dept.status !== undefined ? Number(dept.status) : 1, // Default to active if not provided
-              }))
-              .sort((a, b) => a.name.localeCompare(b.name))
-          );
+          setDepartments(items);
         }
       } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") return;
+        if (
+          (err instanceof DOMException && err.name === "AbortError") ||
+          (err instanceof Error && err.name === "AbortError")
+        ) {
+          return;
+        }
         if (isActive) {
           setErrorMessage(err instanceof Error ? err.message : "Unable to load departments");
         }
@@ -358,6 +330,7 @@ export const EmployeeEditForm = () => {
     };
   }, []);
 
+  // Refresh section list whenever the department changes.
   useEffect(() => {
     if (!formState.departmentId) {
       setSections([]);
@@ -371,39 +344,17 @@ export const EmployeeEditForm = () => {
     const loadSections = async () => {
       setLoadingSections(true);
       try {
-        const url = buildApiUrl(`/api/sections?departmentId=${formState.departmentId}`);
-        const response = await fetch(url, { signal: controller.signal });
-        if (!response.ok) {
-          throw new Error(`Failed to load sections (${response.status})`);
-        }
-        const data = (await response.json()) as Section[] | Section;
-        const list = Array.isArray(data) ? data : [data];
+        const list = await fetchSectionsByDepartment(formState.departmentId, controller.signal);
         if (isActive) {
-          const sectionsByName = new Map<string, Array<{ id: number; name: string; status: number }>>();
-          list.forEach((sec) => {
-            const sectionName = sec.name;
-            const sectionId = Number(sec.id);
-            const sectionStatus = sec.status !== undefined ? Number(sec.status) : 1;
-            
-            if (!sectionsByName.has(sectionName)) {
-              sectionsByName.set(sectionName, []);
-            }
-            sectionsByName.get(sectionName)!.push({
-              id: sectionId,
-              name: sectionName,
-              status: sectionStatus,
-            });
-          });
-          const sectionMap = new Map<string, { id: number; name: string; status: number }>();
-          sectionsByName.forEach((sections, name) => {
-            const sorted = sections.sort((a, b) => b.id - a.id); 
-          });
-          setSections(
-            Array.from(sectionMap.values()).sort((a, b) => a.name.localeCompare(b.name))
-          );
+          setSections(list);
         }
       } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") return;
+        if (
+          (err instanceof DOMException && err.name === "AbortError") ||
+          (err instanceof Error && err.name === "AbortError")
+        ) {
+          return;
+        }
         if (isActive) {
           setErrorMessage(err instanceof Error ? err.message : "Unable to load sections");
         }
@@ -422,6 +373,7 @@ export const EmployeeEditForm = () => {
     };
   }, [formState.departmentId]);
 
+  // Convert API departments into autocomplete options, disabling inactive entries.
   const departmentOptions = useMemo<Option[]>(() => {
     if (!departments.length) return [];
     return departments.map((dept) => ({
@@ -432,6 +384,7 @@ export const EmployeeEditForm = () => {
     }));
   }, [departments]);
 
+  // Same idea for sections; recomputed whenever `sections` updates.
   const sectionOptions = useMemo<Option[]>(() => {
     if (!sections.length) return [];
     return sections.map((section) => ({
@@ -547,6 +500,7 @@ export const EmployeeEditForm = () => {
     return basic > 0 && totalAllowances > 0 && basic <= totalAllowances;
   };
 
+  // Shared reset logic used by both CTA buttons and confirmation dialogs.
   const performReset = useCallback(() => {
     if (employeeId && loadedFormState) {
       setFormState(loadedFormState);
@@ -613,6 +567,8 @@ export const EmployeeEditForm = () => {
     await performSubmit();
   };
 
+  // Primary submit pipeline. `overrideSalaryValidation` is set by the
+  // confirmation dialog when allowances exceed the basic salary.
   const performSubmit = async (overrideSalaryValidation = false) => {
     setHasAttemptedSubmit(true);
     setSubmissionState("submitting");
@@ -726,61 +682,16 @@ export const EmployeeEditForm = () => {
         throw new Error("Please select both department and section.");
       }
 
-      const isEdit = Boolean(employeeId);
-      const url = isEdit
-        ? buildApiUrl(`/api/employees/${employeeId}`)
-        : buildApiUrl("/api/employees");
-      const response = await fetch(url, {
-        method: isEdit ? "PUT" : "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        let errorMessageFromServer = "";
-        try {
-          const contentType = response.headers.get("content-type") ?? "";
-          if (contentType.includes("application/json")) {
-            const errorJson = await response.json();
-            if (typeof errorJson === "string") {
-              errorMessageFromServer = errorJson;
-            } else if (errorJson && typeof errorJson === "object") {
-              errorMessageFromServer =
-                (errorJson.message as string) ??
-                (errorJson.error as string) ??
-                (errorJson.detail as string) ??
-                "";
-            }
-          } else {
-            errorMessageFromServer = (await response.text()) ?? "";
-          }
-        } catch {
-          errorMessageFromServer = "";
-        }
-
-        throw new Error(resolveEmployeeSaveError(response.status, errorMessageFromServer.trim()));
+      if (isEdit && !employeeId) {
+        throw new Error("Employee identifier is missing.");
       }
 
-      let responseData: EmployeeResponse | null = null;
-      try {
-        const contentType = response.headers.get("content-type") ?? "";
-        if (contentType.includes("application/json")) {
-          responseData = (await response.json()) as EmployeeResponse;
-        }
-      } catch {
-        responseData = null;
-      }
+      const responseData = await upsertEmployee(payload, isEdit ? { employeeId } : undefined);
 
       const successText = isEdit ? "Employee updated successfully." : "Employee saved successfully.";
 
       if (isEdit) {
         if (responseData) {
-          const toInputString = (value: unknown) => {
-            if (value === null || value === undefined) return "";
-            return typeof value === "number" ? value.toString() : String(value);
-          };
           const nextState: FormState = {
             empNo: toInputString(responseData.empNo ?? payload.empNo),
             name: responseData.name ?? payload.name,
@@ -819,16 +730,22 @@ export const EmployeeEditForm = () => {
       setSuccessMessage(successText);
     } catch (err) {
       setSubmissionState("error");
-      const message = err instanceof Error ? err.message : "Failed to save employee.";
-      if (isDuplicateEmpNoError(message)) {
+      const resolvedMessage =
+        err instanceof ApiError
+          ? resolveEmployeeSaveError(err.status, err.message)
+          : err instanceof Error
+            ? err.message
+            : "Failed to save employee.";
+      if (isDuplicateEmpNoError(resolvedMessage)) {
         setEmpNoError(DUPLICATE_EMP_NO_MESSAGE);
         setErrorMessage(DUPLICATE_EMP_NO_MESSAGE);
       } else {
-        setErrorMessage(message);
+        setErrorMessage(resolvedMessage);
       }
     }
   };
 
+  // Data backing the summary card shown on the right-hand column.
   const salarySummary = useMemo(
     () => [
       { label: "Basic Salary", value: formatCurrency(parseNumber(formState.basicSalary)) },

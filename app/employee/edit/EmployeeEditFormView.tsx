@@ -53,6 +53,10 @@ type EmployeeEditFormViewProps = {
   salarySummary: SalarySummaryItem[];
 };
 
+/**
+ * Binds controller props to material layout components. Form logic stays in
+ * `EmployeeEditForm`, ensuring this view can remain stateless.
+ */
 const EmployeeEditFormView = ({
   isEditMode,
   errorMessage,
