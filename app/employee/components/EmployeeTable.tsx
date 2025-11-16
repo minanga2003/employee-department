@@ -4,7 +4,6 @@ import { ColumnDef } from "@tanstack/react-table";
 import { alpha } from "@mui/material/styles";
 import SoftIconButton from "@/components/ui/buttons/soft-icon-button";
 import FixedColumnsDataTable from "@/components/ui/data-table/fixed-columns-table";
-
 import type { Employee } from "../types";
 
 type EmployeeTableProps = {
