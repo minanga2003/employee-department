@@ -1,7 +1,14 @@
 "use client";
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import dayjs from "dayjs";
-import { ApiError, fetchDepartments, fetchEmployeeById, fetchSectionsByDepartment, upsertEmployee } from "@/app/employee/api";
+import {
+  ApiError,
+  fetchDepartments,
+  fetchEmployeeById,
+  fetchSectionsByDepartment,
+  upsertEmployee,
+} from "@/app/employee/api";
+import type { EmployeeResponse } from "@/app/employee/api";
 import type { Department, Section } from "@/app/employee/types";
 import NewEmployeeDialogView from "./NewEmployeeDialogView";
 
@@ -121,6 +128,7 @@ const resolveEmployeeSaveError = (status: number, message?: string) => {
 };
 
 const MINIMUM_EMPLOYEE_AGE = 18;
+const FUTURE_DOB_ERROR = "Date of birth cannot be in the future.";
 const getAgeValidationMessage = (age: number) =>
   age > 0 && age < MINIMUM_EMPLOYEE_AGE
     ? `Employees must be at least ${MINIMUM_EMPLOYEE_AGE} years old.`
@@ -136,8 +144,8 @@ export type NewEmployeeDialogProps = {
   mode?: "create" | "edit";
   employeeId?: number | null;
   onClose: () => void;
-  onCreated?: () => void;
-  onUpdated?: () => void;
+  onCreated?: (employee: EmployeeResponse | null) => void;
+  onUpdated?: (employee: EmployeeResponse | null) => void;
 };
 
 const parseNumber = (value: string) => {
@@ -519,6 +527,13 @@ export const NewEmployeeDialog = ({
   const handleDobChange = useCallback(
     (value: string | null) => {
       const nextDob = value ?? "";
+      if (nextDob) {
+        const parsedDob = dayjs(nextDob);
+        if (parsedDob.isValid() && parsedDob.isAfter(dayjs(), "day")) {
+          setDobError(FUTURE_DOB_ERROR);
+          return;
+        }
+      }
       const nextAge = nextDob ? calculateAge(nextDob) : 0;
 
       setFormState((prev) => ({
@@ -526,7 +541,9 @@ export const NewEmployeeDialog = ({
         dob: nextDob,
         age: nextAge,
       }));
-      setDobError(getAgeValidationMessage(nextAge) ?? (nextDob ? null : "Date of birth is required."));
+      setDobError(
+        getAgeValidationMessage(nextAge) ?? (nextDob ? null : "Date of birth is required.")
+      );
     },
     [setDobError, setFormState]
   );
@@ -709,12 +726,12 @@ export const NewEmployeeDialog = ({
         throw new Error("Employee identifier is missing.");
       }
 
-      await upsertEmployee(payload, isEditMode ? { employeeId } : undefined);
+      const response = await upsertEmployee(payload, isEditMode ? { employeeId } : undefined);
 
       if (isEditMode) {
-        onUpdated?.();
+        onUpdated?.(response ?? null);
       } else {
-        onCreated?.();
+        onCreated?.(response ?? null);
       }
       onClose();
     } catch (err) {

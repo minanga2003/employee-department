@@ -1,14 +1,6 @@
 "use client";
-import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
-import {
-  Alert,
-  Box,
-  FormControlLabel,
-  LinearProgress,
-  Stack,
-  Typography,
-  useTheme,
-} from "@mui/material";
+import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Box, FormControlLabel, LinearProgress, Stack, Typography, useTheme } from "@mui/material";
 import Grid2 from "@mui/material/Grid2";
 import CustomAutocomplete from "@/components/forms/drop-down/custom-auto-complete";
 import CustomCheckbox from "@/components/forms/checkbox/custom-checkbox";
@@ -18,6 +10,7 @@ import AddIcon from "@mui/icons-material/Add";
 import TableWithSearch from "@/components/ui/data-table/search-data-table";
 import ConfirmationDialog from "@/components/ui/dialog-box/confirmation-dialog";
 import PageContainer from "@/components/layouts/container/page-container";
+import Swal from "sweetalert2";
 
 import { ApiError, deleteEmployee as deleteEmployeeApi, fetchDepartments, fetchEmployees as fetchEmployeesApi, fetchSectionsByDepartment } from "@/app/employee/api";
 import { EmployeeTable } from "./components/EmployeeTable";
@@ -59,6 +52,9 @@ type Option = {
   disabled?: boolean;
 };
 
+type RecentChangeType = "created" | "updated";
+const HIGHLIGHT_DURATION_MS = 3_000;
+
 /**
  * Main dashboard component. Handles filter state, remote fetches, and dialog
  * visibility before rendering reusable UI elements.
@@ -77,17 +73,48 @@ export const EmployeeDashboard = () => {
 
   const [loadingEmployees, setLoadingEmployees] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notification, setNotification] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingEmployeeId, setEditingEmployeeId] = useState<number | null>(null);
+  const [recentRowHighlights, setRecentRowHighlights] = useState<Record<number, RecentChangeType>>({});
 
   const pendingNotificationRef = useRef<string | null>(null);
+  const pendingHighlightRef = useRef<{ employeeId: number; type: RecentChangeType } | null>(null);
+  const highlightTimersRef = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
 
   const debouncedSearch = useDebounce(search, 400);
+
+  const showSuccessAlert = useCallback((message: string) => {
+    void Swal.fire({
+      icon: "success",
+      title: "Success",
+      text: message,
+      confirmButtonColor: theme.palette.primary.main,
+      confirmButtonText: "OK",
+      timer: 2000,
+      timerProgressBar: true,
+    });
+  }, [theme]);
+
+  const scheduleRowHighlight = useCallback((employeeId: number, type: RecentChangeType) => {
+    if (!employeeId) return;
+    setRecentRowHighlights((prev) => ({ ...prev, [employeeId]: type }));
+    const timers = highlightTimersRef.current;
+    if (timers[employeeId]) {
+      clearTimeout(timers[employeeId]);
+    }
+    timers[employeeId] = setTimeout(() => {
+      setRecentRowHighlights((prev) => {
+        const next = { ...prev };
+        delete next[employeeId];
+        return next;
+      });
+      delete timers[employeeId];
+    }, HIGHLIGHT_DURATION_MS);
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -159,6 +186,13 @@ export const EmployeeDashboard = () => {
     };
   }, [department]);
 
+  useEffect(
+    () => () => {
+      Object.values(highlightTimersRef.current).forEach((timeoutId) => clearTimeout(timeoutId));
+    },
+    []
+  );
+
   // Fetch employees whenever filters/search/debounced text change.
   useEffect(() => {
     const controller = new AbortController();
@@ -166,9 +200,6 @@ export const EmployeeDashboard = () => {
 
     const loadEmployees = async () => {
       setLoadingEmployees(true);
-      if (!pendingNotificationRef.current) {
-        setNotification(null);
-      }
       try {
         const raw = await fetchEmployeesApi(
           {
@@ -198,8 +229,16 @@ export const EmployeeDashboard = () => {
         setEmployees(parsedEmployees);
         setPageTotalSalary(toNumber(raw.pageTotalSalary));
         setError(null);
+        if (pendingHighlightRef.current) {
+          const { employeeId, type } = pendingHighlightRef.current;
+          const exists = parsedEmployees.some((employee) => employee.id === employeeId);
+          if (exists) {
+            scheduleRowHighlight(employeeId, type);
+          }
+          pendingHighlightRef.current = null;
+        }
         if (pendingNotificationRef.current) {
-          setNotification(pendingNotificationRef.current);
+          showSuccessAlert(pendingNotificationRef.current);
           pendingNotificationRef.current = null;
         }
       } catch (err) {
@@ -213,6 +252,7 @@ export const EmployeeDashboard = () => {
         setEmployees([]);
         setPageTotalSalary(0);
         pendingNotificationRef.current = null;
+        pendingHighlightRef.current = null;
         const errorMessage =
           err instanceof ApiError
             ? err.message
@@ -237,7 +277,7 @@ export const EmployeeDashboard = () => {
       isActive = false;
       controller.abort();
     };
-  }, [activeOnly, department, section, debouncedSearch, reloadKey]);
+  }, [activeOnly, department, section, debouncedSearch, reloadKey, scheduleRowHighlight, showSuccessAlert]);
 
   const departmentOptions = useMemo<Option[]>(() => {
     const base: Option[] = [{ label: "All Departments", value: "all" }];
@@ -303,7 +343,6 @@ export const EmployeeDashboard = () => {
     const employeeId = pendingDeleteId;
     setDeletingId(employeeId);
     setError(null);
-    setNotification(null);
 
     try {
       await deleteEmployeeApi(employeeId);
@@ -423,18 +462,13 @@ export const EmployeeDashboard = () => {
                 deletingId={deletingId}
                 pageTotalSalary={pageTotalSalary}
                 formatCurrency={formatCurrency}
+            recentRowHighlights={recentRowHighlights}
               />
             </Box>
           </BlankCard>
         </Grid2>
       </Grid2>
       </Box>
-
-      {notification && (
-        <Alert severity="success" variant="outlined" sx={{ mt: 2, ml: 1 }}>
-          {notification}
-        </Alert>
-      )}
 
       <ConfirmationDialog
         open={isDeleteDialogOpen}
@@ -452,8 +486,14 @@ export const EmployeeDashboard = () => {
       <NewEmployeeDialog
         open={isCreateDialogOpen}
         onClose={() => setIsCreateDialogOpen(false)}
-        onCreated={() => {
+        onCreated={(employee) => {
           pendingNotificationRef.current = "Employee created successfully.";
+          if (employee?.id) {
+            pendingHighlightRef.current = {
+              employeeId: Number(employee.id),
+              type: "created",
+            };
+          }
           setReloadKey((prev) => prev + 1);
         }}
       />
@@ -465,8 +505,14 @@ export const EmployeeDashboard = () => {
           setIsEditDialogOpen(false);
           setEditingEmployeeId(null);
         }}
-        onUpdated={() => {
+        onUpdated={(employee) => {
           pendingNotificationRef.current = "Employee updated successfully.";
+          if (employee?.id) {
+            pendingHighlightRef.current = {
+              employeeId: Number(employee.id),
+              type: "updated",
+            };
+          }
           setReloadKey((prev) => prev + 1);
         }}
       />

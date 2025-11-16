@@ -18,6 +18,7 @@ import {
   styled,
   TableRow as MuiTableRow,
 } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import type { SelectChangeEvent } from "@mui/material/Select";
 import {
   ColumnDef,
@@ -87,6 +88,27 @@ const StyledTableRow = styled(MuiTableRow)(({ theme }) => ({
   "&.deleted-row": {
     backgroundColor: "#ffe6e6",
   },
+  "&.recent-created-row": {
+    backgroundColor: alpha(theme.palette.success.light, 0.35),
+    transition: "background-color 0.3s ease",
+    "&:hover": {
+      backgroundColor: alpha(theme.palette.success.light, 0.5),
+    },
+  },
+  "&.recent-updated-row": {
+    backgroundColor: alpha(theme.palette.info.light, 0.35),
+    transition: "background-color 0.3s ease",
+    "&:hover": {
+      backgroundColor: alpha(theme.palette.info.light, 0.5),
+    },
+  },
+  "&.recent-deleted-row": {
+    backgroundColor: alpha(theme.palette.error.light, 0.35),
+    transition: "background-color 0.3s ease",
+    "&:hover": {
+      backgroundColor: alpha(theme.palette.error.light, 0.5),
+    },
+  },
 }));
 
 const StyledTableCell = styled(TableCell, {
@@ -143,6 +165,15 @@ const StyledTableCell = styled(TableCell, {
   "&.highlight-row": {
     backgroundColor: `${theme.palette.primary.light} !important`,
   },
+  ".recent-created-row &": {
+    backgroundColor: `${alpha(theme.palette.success.light, 0.35)} !important`,
+  },
+  ".recent-updated-row &": {
+    backgroundColor: `${alpha(theme.palette.info.light, 0.35)} !important`,
+  },
+  ".recent-deleted-row &": {
+    backgroundColor: `${alpha(theme.palette.error.light, 0.35)} !important`,
+  },
 }));
 
 const ResizeHandle = styled(Box, {
@@ -191,6 +222,7 @@ export type FixedColumnsTableProps<T extends object> = {
   isShowFooter?: boolean;
   getRowClassName?: (row: T) => string;
   getStableRowId?: (row: T) => string | number | undefined;
+  selectableRows?: boolean;
 };
 
 export function FixedColumnsDataTable<T extends object>({
@@ -209,6 +241,7 @@ export function FixedColumnsDataTable<T extends object>({
   isShowFooter = false,
   getRowClassName,
   getStableRowId,
+  selectableRows = true,
 }: FixedColumnsTableProps<T>) {
   const isExpandable = Boolean(renderSubComponent && getRowCanExpand);
 
@@ -222,6 +255,7 @@ export function FixedColumnsDataTable<T extends object>({
   const [draggedColumnId, setDraggedColumnId] = React.useState<string | null>(null);
   const [resizingColumnId, setResizingColumnId] = React.useState<string | null>(null);
   const [selectedRowId, setSelectedRowId] = React.useState<string | null>(null);
+  const isRowSelectable = selectableRows !== false;
 
   const [columns, setColumns] = React.useState(() => {
     let cols = [...userColumns].map((column, index) => ({
@@ -420,8 +454,16 @@ export function FixedColumnsDataTable<T extends object>({
     },
     getRowId,
     meta: {
-      selectRow: (rowId: string) => setSelectedRowId(rowId),
-      clearRowSelection: () => setSelectedRowId(null),
+      selectRow: (rowId: string) => {
+        if (isRowSelectable) {
+          setSelectedRowId(rowId);
+        }
+      },
+      clearRowSelection: () => {
+        if (isRowSelectable) {
+          setSelectedRowId(null);
+        }
+      },
     },
   });
 
@@ -618,7 +660,7 @@ export function FixedColumnsDataTable<T extends object>({
     const fixedHeaders = headers.filter((header) => header.column.columnDef.meta?.isFixed);
     const lastFixedId = fixedHeaders[fixedHeaders.length - 1]?.id;
     const isLastFixed = lastFixedId === cell.column.id;
-    const isRowHighlighted = cell.row.id === selectedRowId;
+    const isRowHighlighted = isRowSelectable && cell.row.id === selectedRowId;
     const extraRowClass = getRowClassName?.(cell.row.original) ?? "";
 
     return (
@@ -723,12 +765,15 @@ export function FixedColumnsDataTable<T extends object>({
             {rows.map((row) => (
               <React.Fragment key={row.id}>
                 <StyledTableRow
-                  className={`${row.id === selectedRowId ? "highlight-row" : ""} ${
+                  className={`${isRowSelectable && row.id === selectedRowId ? "highlight-row" : ""} ${
                     getRowClassName?.(row.original) ?? ""
                   }`}
-                  hover
-                  onClick={() => setSelectedRowId((prev) => (prev === row.id ? null : row.id))}
-                  sx={{ cursor: "pointer" }}
+                  hover={isRowSelectable}
+                  onClick={() => {
+                    if (!isRowSelectable) return;
+                    setSelectedRowId((prev) => (prev === row.id ? null : row.id));
+                  }}
+                  sx={{ cursor: isRowSelectable ? "pointer" : "default" }}
                 >
                   {row.getVisibleCells().map((cell) => renderDataCell(cell))}
                 </StyledTableRow>

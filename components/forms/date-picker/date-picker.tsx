@@ -18,18 +18,27 @@ export type CustomDatePickerProps = Omit<
 const CustomDatePicker = ({
   value,
   onChange,
+  disableFuture = true,
+  maxDate,
   ...props
 }: CustomDatePickerProps) => {
   const parsedValue = useMemo(
     () => (value ? dayjs(value) : null),
     [value]
   );
+  const today = useMemo(() => dayjs(), []);
+  const resolvedMaxDate =
+    disableFuture && maxDate === undefined
+      ? today
+      : maxDate;
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <DatePicker
         value={parsedValue}
         onChange={(newValue) => onChange(newValue ? newValue.format("YYYY-MM-DD") : null)}
+        disableFuture={disableFuture}
+        maxDate={resolvedMaxDate}
         slots={{ textField: CustomTextField }}
         slotProps={{
           textField: {

@@ -6,6 +6,8 @@ import SoftIconButton from "@/components/ui/buttons/soft-icon-button";
 import FixedColumnsDataTable from "@/components/ui/data-table/fixed-columns-table";
 import type { Employee } from "../types";
 
+type RecentChangeType = "created" | "updated" | "deleted";
+
 type EmployeeTableProps = {
   employees: Employee[];
   loading: boolean;
@@ -15,6 +17,7 @@ type EmployeeTableProps = {
   deletingId: number | null;
   pageTotalSalary: number;
   formatCurrency: (amount: number) => string;
+  recentRowHighlights?: Record<number, RecentChangeType>;
 };
 
 /**
@@ -31,6 +34,7 @@ export const EmployeeTable = ({
   deletingId,
   pageTotalSalary,
   formatCurrency,
+  recentRowHighlights,
 }: EmployeeTableProps) => {
   // Columns are memoised to avoid re-creating the TanStack column objects on
   // every render and to keep drag/sort metadata stable.
@@ -230,10 +234,21 @@ export const EmployeeTable = ({
         data={employees}
         columns={columns}
         getStableRowId={(row) => row.id}
-        getRowClassName={(row) => (!row.active ? "inactive-row" : "")}
+        getRowClassName={(row) => {
+          const classes = [];
+          if (!row.active) {
+            classes.push("inactive-row");
+          }
+          const highlight = recentRowHighlights?.[row.id];
+          if (highlight) {
+            classes.push(`recent-${highlight}-row`);
+          }
+          return classes.join(" ");
+        }}
         fixedColumnsCount={0}
         firstColumnWidth={80}
         isServerPagination={false}
+        selectableRows={false}
       />
       <Box display="flex" justifyContent="flex-end">
         <Typography variant="subtitle2" sx={{ fontSize: "0.85rem" }}>

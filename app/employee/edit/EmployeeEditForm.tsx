@@ -87,6 +87,7 @@ const toInputString = (value: unknown) => {
   return String(value ?? "");
 };
 const MINIMUM_EMPLOYEE_AGE = 18;
+const FUTURE_DOB_ERROR = "Date of birth cannot be in the future.";
 const getAgeValidationMessage = (age: number) =>
   age > 0 && age < MINIMUM_EMPLOYEE_AGE
     ? `Employees must be at least ${MINIMUM_EMPLOYEE_AGE} years old.`
@@ -435,6 +436,13 @@ export const EmployeeEditForm = () => {
   };
   const handleDobChange = (value: string | null) => {
     const nextDob = value ?? "";
+    if (nextDob) {
+      const parsedDob = dayjs(nextDob);
+      if (parsedDob.isValid() && parsedDob.isAfter(dayjs(), "day")) {
+        setDobError(FUTURE_DOB_ERROR);
+        return;
+      }
+    }
     const nextAge = nextDob ? calculateAge(nextDob) : 0;
 
     setFormState((prev) => ({
@@ -442,7 +450,10 @@ export const EmployeeEditForm = () => {
       dob: nextDob,
       age: nextAge,
     }));
-    setDobError(getAgeValidationMessage(nextAge) ?? (nextDob ? null : "Date of birth is required."));
+    setDobError(
+      getAgeValidationMessage(nextAge) ??
+        (nextDob ? null : "Date of birth is required.")
+    );
   };
 
   const handleDepartmentChange = (option: Option | null) => {
