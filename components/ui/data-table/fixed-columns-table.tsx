@@ -898,7 +898,4 @@ const TablePagination = <T extends object,>({
     </Stack>
   );
 };
-
 export default FixedColumnsDataTable;
-
-

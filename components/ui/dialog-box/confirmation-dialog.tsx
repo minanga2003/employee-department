@@ -144,4 +144,3 @@ const ConfirmationDialog: React.FC<IConfirmationDialogProps> = ({
 };
 
 export default ConfirmationDialog;
-

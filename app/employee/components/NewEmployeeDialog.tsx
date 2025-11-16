@@ -1283,4 +1283,3 @@ export const NewEmployeeDialog = ({
 };
 
 export default NewEmployeeDialog;
-
