@@ -147,11 +147,8 @@ export const EmployeeDashboard = () => {
         const data = (await response.json()) as Section[] | Section;
         const items = Array.isArray(data) ? data : [data];
         if (isActive) {
-          // Map sections and deduplicate by name
-          // Strategy: Collect all sections by name, then pick the best one (active preferred, then lowest ID)
           const sectionsByName = new Map<string, Array<{ id: number; name: string; status: number }>>();
-          
-          // First pass: collect all sections grouped by name
+
           items.forEach((item) => {
             const sectionName = item.name;
             const sectionId = Number(item.id);
