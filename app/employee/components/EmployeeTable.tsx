@@ -214,7 +214,6 @@ export const EmployeeTable = ({
           No employees found. Adjust your filters or search.
         </Alert>
       )}
-
       <FixedColumnsDataTable<Employee>
         data={employees}
         columns={columns}
@@ -224,7 +223,6 @@ export const EmployeeTable = ({
         firstColumnWidth={80}
         isServerPagination={false}
       />
-
       <Box display="flex" justifyContent="flex-end">
         <Typography variant="subtitle2" sx={{ fontSize: "0.85rem" }}>
           Total Salary:&nbsp;

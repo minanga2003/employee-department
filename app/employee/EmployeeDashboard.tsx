@@ -104,7 +104,7 @@ export const EmployeeDashboard = () => {
               .map((item) => ({
                 id: Number(item.id),
                 name: item.name,
-                status: item.status !== undefined ? Number(item.status) : 1, // Default to active if not provided
+                status: item.status !== undefined ? Number(item.status) : 1, 
               }))
               .sort((a, b) => a.name.localeCompare(b.name))
           );
@@ -120,9 +120,7 @@ export const EmployeeDashboard = () => {
         }
       }
     };
-
     loadDepartments();
-
     return () => {
       isActive = false;
       controller.abort();
@@ -168,19 +166,11 @@ export const EmployeeDashboard = () => {
               status: sectionStatus,
             });
           });
-          
-          // Second pass: for each section name, pick the best one
-          // Strategy: Prefer higher ID when duplicates exist (higher ID is the correct/canonical entry)
-          // If multiple with same status, prefer higher ID
-          // If one active and one inactive, prefer the one with higher ID (canonical entry)
           const sectionMap = new Map<string, { id: number; name: string; status: number }>();
           sectionsByName.forEach((sections, name) => {
-            // Sort: by ID descending (higher ID first - canonical entry)
-            const sorted = sections.sort((a, b) => b.id - a.id); // Higher ID first
-            // Pick the first one (highest ID - canonical entry)
+            const sorted = sections.sort((a, b) => b.id - a.id); 
             sectionMap.set(name, sorted[0]);
           });
-          // Convert map values to array and sort
           setSections(
             Array.from(sectionMap.values()).sort((a, b) => a.name.localeCompare(b.name))
           );
@@ -210,7 +200,6 @@ export const EmployeeDashboard = () => {
       if (!pendingNotificationRef.current) {
         setNotification(null);
       }
-
       try {
         const url = buildApiUrl("/api/employees");
         if (activeOnly) {
@@ -319,8 +308,6 @@ export const EmployeeDashboard = () => {
         label: sec.name,
         value: String(sec.id),
         status: sec.status,
-        // In dashboard, inactive sections can still be used for filtering
-        // but will be displayed in gray to indicate they're inactive
         disabled: false,
       }))
     );
@@ -534,5 +521,4 @@ export const EmployeeDashboard = () => {
     </PageContainer>
   );
 };
-
 export default EmployeeDashboard;
