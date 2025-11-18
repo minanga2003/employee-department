@@ -15,18 +15,7 @@ import Swal from "sweetalert2";
 import { ApiError, deleteEmployee as deleteEmployeeApi, fetchDepartments, fetchEmployees as fetchEmployeesApi, fetchSectionsByDepartment } from "@/app/employee/api";
 import { EmployeeTable } from "./components/EmployeeTable";
 import NewEmployeeDialog from "./components/NewEmployeeDialog";
-import type { Department, Employee, PagedEmployeesResponse, Section } from "./types";
-
-const useDebounce = <T,>(value: T, delay: number) => {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-
-  useEffect(() => {
-    const handle = setTimeout(() => setDebouncedValue(value), delay);
-    return () => clearTimeout(handle);
-  }, [value, delay]);
-
-  return debouncedValue;
-};
+import type { Department, Employee, Section } from "./types";
 
 const toNumber = (value: unknown): number => {
   if (typeof value === "number") return value;
@@ -69,7 +58,6 @@ export const EmployeeDashboard = () => {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [pageTotalSalary, setPageTotalSalary] = useState(0);
 
   const [loadingEmployees, setLoadingEmployees] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,8 +72,6 @@ export const EmployeeDashboard = () => {
   const pendingNotificationRef = useRef<string | null>(null);
   const pendingHighlightRef = useRef<{ employeeId: number; type: RecentChangeType } | null>(null);
   const highlightTimersRef = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
-
-  const debouncedSearch = useDebounce(search, 400);
 
   const showSuccessAlert = useCallback((message: string) => {
     void Swal.fire({
@@ -193,7 +179,7 @@ export const EmployeeDashboard = () => {
     []
   );
 
-  // Fetch employees whenever filters/search/debounced text change.
+  // Fetch employees whenever a reload is requested (create/update/delete).
   useEffect(() => {
     const controller = new AbortController();
     let isActive = true;
@@ -203,10 +189,6 @@ export const EmployeeDashboard = () => {
       try {
         const raw = await fetchEmployeesApi(
           {
-            activeOnly,
-            departmentId: department !== "all" ? department : undefined,
-            sectionId: section !== "all" ? section : undefined,
-            search: debouncedSearch.trim() || undefined,
             page: 0,
             size: 50,
             sort: "empNo",
@@ -227,7 +209,6 @@ export const EmployeeDashboard = () => {
         }));
 
         setEmployees(parsedEmployees);
-        setPageTotalSalary(toNumber(raw.pageTotalSalary));
         setError(null);
         if (pendingHighlightRef.current) {
           const { employeeId, type } = pendingHighlightRef.current;
@@ -250,7 +231,6 @@ export const EmployeeDashboard = () => {
         }
         if (!isActive) return;
         setEmployees([]);
-        setPageTotalSalary(0);
         pendingNotificationRef.current = null;
         pendingHighlightRef.current = null;
         const errorMessage =
@@ -277,7 +257,7 @@ export const EmployeeDashboard = () => {
       isActive = false;
       controller.abort();
     };
-  }, [activeOnly, department, section, debouncedSearch, reloadKey, scheduleRowHighlight, showSuccessAlert]);
+  }, [reloadKey, scheduleRowHighlight, showSuccessAlert]);
 
   const departmentOptions = useMemo<Option[]>(() => {
     const base: Option[] = [{ label: "All Departments", value: "all" }];
@@ -320,6 +300,55 @@ export const EmployeeDashboard = () => {
     [employees, pendingDeleteId]
   );
 
+  const filteredEmployees = useMemo(() => {
+    const normalizedDepartment = department === "all" ? null : department;
+    const normalizedSection = section === "all" ? null : section;
+    const normalizedSearch = search.trim().toLowerCase();
+
+    return employees.filter((employee) => {
+      if (activeOnly && !employee.active) {
+        return false;
+      }
+
+      if (normalizedDepartment) {
+        const employeeDepartment = employee.departmentId ? String(employee.departmentId) : null;
+        if (employeeDepartment !== normalizedDepartment) {
+          return false;
+        }
+      }
+
+      if (normalizedSection) {
+        const employeeSection = employee.sectionId ? String(employee.sectionId) : null;
+        if (employeeSection !== normalizedSection) {
+          return false;
+        }
+      }
+
+      if (normalizedSearch.length > 0) {
+        const haystack = [
+          employee.name,
+          employee.email,
+          employee.empNo?.toString(),
+          employee.departmentName,
+          employee.sectionName,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        if (!haystack.includes(normalizedSearch)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [employees, activeOnly, department, section, search]);
+
+  const filteredPageTotalSalary = useMemo(
+    () => filteredEmployees.reduce((sum, employee) => sum + toNumber(employee.totalSalary), 0),
+    [filteredEmployees]
+  );
+
   const isDeleteDialogOpen = pendingDeleteId !== null;
   const isDeletingSelectedEmployee = deletingId !== null && deletingId === pendingDeleteId;
 
@@ -346,7 +375,8 @@ export const EmployeeDashboard = () => {
 
     try {
       await deleteEmployeeApi(employeeId);
-      pendingNotificationRef.current = "Employee deleted successfully.";
+      setEmployees((prev) => prev.filter((employee) => employee.id !== employeeId));
+      showSuccessAlert("Employee deleted successfully.");
       setReloadKey((prev) => prev + 1);
     } catch (err) {
       const message =
@@ -454,13 +484,13 @@ export const EmployeeDashboard = () => {
             <Box sx={{ display: "inline-block", overflowX: "auto", width: "100%" }}>
               {loadingEmployees && <LinearProgress />}
               <EmployeeTable
-                employees={employees}
+                employees={filteredEmployees}
                 loading={loadingEmployees}
                 error={error}
                 onEdit={handleEdit}
                 onDeleteRequest={handleRequestDelete}
                 deletingId={deletingId}
-                pageTotalSalary={pageTotalSalary}
+                pageTotalSalary={filteredPageTotalSalary}
                 formatCurrency={formatCurrency}
             recentRowHighlights={recentRowHighlights}
               />
